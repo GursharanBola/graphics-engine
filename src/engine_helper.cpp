@@ -1,15 +1,10 @@
-#include "buffer.h"
-#include <cmath>
-#include <stdexcept>
-#include <utility>
+#include "engine_helper.h"
 
-// TODO: Follow the one definition rule
-namespace engine_helpers {
-Eigen::Vector3d project_point(const Eigen::Vector3d p1,
-                              const Eigen::Vector3d cam_u,
-                              const Eigen::Vector3d cam_v,
-                              const Eigen::Vector3d cam_w,
-                              const Eigen::Vector3d origin) {
+Eigen::Vector3d engine_helper::project_point(const Eigen::Vector3d p1,
+                                             const Eigen::Vector3d cam_u,
+                                             const Eigen::Vector3d cam_v,
+                                             const Eigen::Vector3d cam_w,
+                                             const Eigen::Vector3d origin) {
     Eigen::Vector3d translated = p1 - origin;
     double x_cam = translated.dot(cam_u);
     double y_cam = translated.dot(cam_v);
@@ -17,9 +12,10 @@ Eigen::Vector3d project_point(const Eigen::Vector3d p1,
     return Eigen::Vector3d(x_cam, y_cam, z_cam);
 }
 
-raw_tri proj_tri(const raw_tri &tri, const Eigen::Vector3d cam_u,
-                 const Eigen::Vector3d cam_v, const Eigen::Vector3d cam_w,
-                 const Eigen::Vector3d origin) {
+raw_tri engine_helper::proj_tri(const raw_tri &tri, const Eigen::Vector3d cam_u,
+                                const Eigen::Vector3d cam_v,
+                                const Eigen::Vector3d cam_w,
+                                const Eigen::Vector3d origin) {
     Eigen::Vector3d p1 = tri.p1;
     Eigen::Vector3d p2 = tri.p2;
     Eigen::Vector3d p3 = tri.p3;
@@ -27,11 +23,12 @@ raw_tri proj_tri(const raw_tri &tri, const Eigen::Vector3d cam_u,
     Eigen::Vector3d proj_2 = project_point(p2, cam_u, cam_v, cam_w, origin);
     Eigen::Vector3d proj_3 = project_point(p3, cam_u, cam_v, cam_w, origin);
     return raw_tri{proj_1, proj_2, proj_3};
-}
+};
 
-// bound_box() runs on world coordinates on the plane of interest
-bound_box<double> w_box(const Eigen::Vector3d p1, const Eigen::Vector3d p2,
-                        const Eigen::Vector3d p3, const double aspect_ratio) {
+bound_box<double> engine_helper::w_box(const Eigen::Vector3d p1,
+                                       const Eigen::Vector3d p2,
+                                       const Eigen::Vector3d p3,
+                                       const double aspect_ratio) {
     double hor_min = std::min({p1[0], p2[0], p3[0]});
     double ver_min = std::min({p1[1], p2[1], p3[1]});
     double hor_max = std::max({p1[0], p2[0], p3[0]});
@@ -53,8 +50,8 @@ bound_box<double> w_box(const Eigen::Vector3d p1, const Eigen::Vector3d p2,
     return bbox;
 }
 
-// create a bound box in terms of pixels on an image_buffer
-bound_box<int> create_box(const Eigen::Vector3d p1, const Eigen::Vector3d p2,
+bound_box<int>
+engine_helper::create_box(const Eigen::Vector3d p1, const Eigen::Vector3d p2,
                           const Eigen::Vector3d p3, const double aspect_ratio,
                           const int img_length, const int img_width) {
     bound_box<double> w_bbox = w_box(p1, p2, p3, aspect_ratio);
@@ -65,32 +62,38 @@ bound_box<int> create_box(const Eigen::Vector3d p1, const Eigen::Vector3d p2,
     return bound_box<int>{left_pixel, right_pixel, top_pixel, bot_pixel};
 }
 
-// Pineda's edge function
-bool is_in_tri(const Eigen::Vector3d &p1, const Eigen::Vector3d &p2,
-               const Eigen::Vector3d &p3, const Eigen::Vector3d &test) {
-    double dx1 = p2.x() - p1.x();
-    double dy1 = p2.y() - p1.y();
-    double tx1 = test.x() - p1.x();
-    double ty1 = test.y() - p1.y();
-    double cross1 = dx1 * ty1 - dy1 * tx1;
-    int val = (cross1 > 0.0) ? 1 : -1;
-    double dx2 = p3.x() - p2.x();
-    double dy2 = p3.y() - p2.y();
-    double tx2 = test.x() - p2.x();
-    double ty2 = test.y() - p2.y();
-    if (val * (dx2 * ty2 - dy2 * tx2) < 0.0)
-        return false;
-    double dx3 = p1.x() - p3.x();
-    double dy3 = p1.y() - p3.y();
-    double tx3 = test.x() - p3.x();
-    double ty3 = test.y() - p3.y();
-    return val * (dx3 * ty3 - dy3 * tx3) >= 0.0;
+double engine_helper::edge_func(const Eigen::Vector3d &a,
+                                const Eigen::Vector3d &b,
+                                const Eigen::Vector3d &p) {
+    return (p[0] - a[0]) * (b[1] - a[1]) - (p[1] - a[1]) * (b[0] - a[0]);
 }
 
-// push the tile back onto the buffer, offset_x,y is in pixels
+Eigen::Vector3d engine_helper::get_bary(const Eigen::Vector3d &p1,
+                                        const Eigen::Vector3d &p2,
+                                        const Eigen::Vector3d &p3,
+                                        const Eigen::Vector3d &test_pt) {
+    double w1 = edge_func(p2, p3, test_pt);
+    double w2 = edge_func(p3, p1, test_pt);
+    double w3 = edge_func(p1, p2, test_pt);
+    double total_area = w1 + w2 + w3;
+    if (total_area == 0) {
+        return {-1.0, -1.0, -1.0};
+    }
+    bool all_pos = w1 > 0.0 && w2 > 0.0 && w3 > 0.0;
+    bool all_neg = w1 < 0.0 && w2 < 0.0 && w3 < 0.0;
+    if (all_neg || all_pos) {
+        double inv_area = 1.0 / total_area;
+        w1 = std::abs(w1);
+        w2 = std::abs(w2);
+        w3 = std::abs(w3);
+        return {w1 * inv_area, w2 * inv_area, w3 * inv_area};
+    }
+    return {-1.0, -1.0, -1.0};
+}
+
 template <typename T>
-void pull(buffer<T> &src, buffer<T> &dest, const int offset_x,
-          const int offset_y) {
+void engine_helper::pull(buffer<T> &src, buffer<T> &dest, const int offset_x,
+                         const int offset_y) {
     const int sqrt_tile = dest.get_length_p();
     const int tile_w = dest.get_width_p();
     if (sqrt_tile != tile_w) {
@@ -127,7 +130,6 @@ void pull(buffer<T> &src, buffer<T> &dest, const int offset_x,
     }
 }
 
-// push the tile back onto the buffer, offset_x,y is in pixels
 template <typename T>
 void push(buffer<T> &src, buffer<T> &dest, const int offset_x,
           const int offset_y) {
@@ -167,7 +169,6 @@ void push(buffer<T> &src, buffer<T> &dest, const int offset_x,
     }
 }
 
-// single thread job given the correct b_box
 template <typename Func, typename BuffType, typename ArgType>
 void with_tiles(Func &&job, bound_box<int> &b_box, BuffType &&buffs,
                 ArgType &&args) {
@@ -189,46 +190,17 @@ void with_tiles(Func &&job, bound_box<int> &b_box, BuffType &&buffs,
         }
     }
 }
-// TODO: write the with_buffs function
-template <typename T> struct ra_tri_args {
-    const int paren_len;
-    const int paren_wid;
-    const raw_tri &p_tri;
-    const T &val;
-    const double alpha = 1.0 / 3.0;
-    const double beta = 1.0 / 3.0;
-    const double gamma = 1.0 / 3.0;
-};
 
-template <typename T> struct ra_tri_buffs {
-    buffer<T> &buff;
-    buffer<double> &z_buff;
-    ra_tri_buffs(buffer<T> &b, buffer<double> &z) : buff(b), z_buff(z) {}
-    ra_tri_buffs make_tiles(const int sqrt_tile) const {
-        const int sqrt_samples = this->buff.get_sqrt_samples();
-        const int side_len = TILE_SIZE * sqrt_samples;
-        buffer<T> tile{side_len, side_len};
-        buffer<double> z_tile{side_len, side_len};
-        return ra_tri_buffs{tile, z_tile};
-    }
-    void pull_to_tile(ra_tri_buffs &main_b, const int offset_x,
-                      const int offset_y) {
-        pull(main_b.buff, buff, offset_x, offset_y);
-        pull(main_b.z_buff, z_buff, offset_x, offset_y);
-    }
-    void push_to_buff(ra_tri_buffs &main_b, const int offset_x,
-                      const int offset_y) {
-        push(buff, main_b.buff, offset_x, offset_y);
-        push(z_buff, main_b.z_buff, offset_x, offset_y);
-    }
-
-  private:
-    static constexpr int TILE_SIZE = 4;
-};
+template <typename Func, typename BuffType, typename ArgType>
+void engine_helper::with_buff(Func &&job, bound_box<int> &b_box,
+                              BuffType &&buffs, ArgType &&args) {
+    job(b_box, std::forward<BuffType>(buffs), std::forward<ArgType>(args));
+}
 
 template <typename T>
-void rast_tri(const bound_box<int> &b_box, ra_tri_buffs<T> &buffs,
-              ra_tri_args<T> &args, const int off_x, const int off_y) {
+void engine_helper::rast_tri(const bound_box<int> &b_box,
+                             ra_tri_buffs<T> &buffs, ra_tri_args<T> &args,
+                             const int off_x, const int off_y) {
     const int paren_len = args.paren_len;
     const int paren_wid = args.paren_wid;
     const double a_ratio = (double)paren_len / paren_wid;
@@ -237,35 +209,33 @@ void rast_tri(const bound_box<int> &b_box, ra_tri_buffs<T> &buffs,
     const int right = b_box.max_x * sqrt_samples;
     const int top = b_box.min_y * sqrt_samples;
     const int bot = b_box.max_y * sqrt_samples;
-    const int alpha = args.alpha;
-    const int beta = args.beta;
-    const int gamma = args.gamma;
-    const int s_pix_to_world_x = paren_len * 2 * a_ratio - a_ratio;
-    const int s_pix_to_world_y = paren_wid * 2 - 1;
-    const raw_tri &p_tri = args.raw_tri;
+    const double s_pix_to_world_x = paren_len * 2 * a_ratio - a_ratio;
+    const double s_pix_to_world_y = paren_wid * 2 - 1;
+    const double inv_pix_x = 1.0 / s_pix_to_world_x;
+    const double inv_pix_y = 1.0 / s_pix_to_world_y;
+    const raw_tri &p_tri = args.p_tri;
     const double inv_p1_z = 1.0 / p_tri.p1[2];
     const double inv_p2_z = 1.0 / p_tri.p2[2];
     const double inv_p3_z = 1.0 / p_tri.p3[2];
     for (int k = left; k < right; ++k) {
+        double world_x = k * inv_pix_x;
         for (int l = top; l < bot; ++l) {
-            double world_x = (double)k / s_pix_to_world_x;
-            double world_y = (double)l / s_pix_to_world_y;
+            double world_y = l * inv_pix_y;
             Eigen::Vector3d test{world_x, world_y, 0};
-            bool is_in = is_in_tri(p_tri.p1, p_tri.p2, p_tri.p3, test);
-            if (!is_in) {
+            Eigen::Vector3d bary = get_bary(p_tri.p1, p_tri.p2, p_tri.p3, test);
+            if (bary[0] < 0.0) {
                 continue;
             }
             double z_rep =
-                alpha * inv_p1_z + beta * inv_p2_z + gamma * inv_p3_z;
+                bary[0] * inv_p1_z + bary[1] * inv_p2_z + bary[2] * inv_p3_z;
             double z_sub = (z_rep > 0) ? (1.0 / z_rep)
                                        : std::numeric_limits<double>::max();
             int x = k - off_x;
             int y = l - off_y;
-            if (args.z_buff.get(x, y) > z_sub) {
-                args.z_buff.set(x, y, z_sub);
-                args.buff.set(x, y, args.val);
+            if (buffs.z_buff.get(x, y) > z_sub) {
+                buffs.z_buff.set(x, y, z_sub);
+                buffs.buff.set(x, y, args.val);
             }
         }
     }
 }
-} // namespace engine_helpers

@@ -7,6 +7,8 @@
 #include <memory>
 #include <vector>
 
+// TODO: there is a tri_ref object and triangle which are the same
+// make this a tri_ref
 typedef struct triangle {
     // note all of these are v_id.
     int point1;
