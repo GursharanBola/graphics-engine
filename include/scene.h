@@ -6,6 +6,7 @@
 #include "mesh.h"
 #include "projector.h"
 #include <memory>
+#include <stdexcept>
 class light;
 
 /*
@@ -57,6 +58,14 @@ class scene {
         z_buffer_lights.push_back(new_lz_buff);
         s_buffer_lights.push_back(new_ls_buff);
         lights.push_back(new_light);
+    }
+    void add_light_s_buff() {
+        seen_buffer s_buff{img_length, img_height, sqrt_samples};
+        s_buffer_lights.push_back(s_buff);
+    }
+    void add_light_z_buff() {
+        z_buffer z_buff{img_length, img_height, sqrt_samples};
+        z_buffer_lights.push_back(z_buff);
     }
     void clear_scene() {
         meshes.clear();

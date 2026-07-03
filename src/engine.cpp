@@ -1,13 +1,10 @@
 #include "engine.h"
 #include "buffer.h"
-#include <cmath>
+#include <memory>
 #include <stdexcept>
 #include <vector>
 
-// TODO: debug engine::fill_v_s and later add multithreading
-// TODO: re-do this entire function so that it doesn't have tiling
-// this because this is just adding overhead for no reason, this is
-// a relatively simple task since a function is defined for this
+// TODO: redo this function with refactored code
 void engine::fill_v_s(const projector &projector,
                       const std::vector<std::unique_ptr<mesh>> &meshes,
                       const vertex_buffer &v_buff, z_buffer &z_buff,
@@ -21,18 +18,13 @@ void engine::fill_v_s(const projector &projector,
     int length = z_buff.get_length();
     int width = z_buff.get_width();
     int sqrt_samples = z_buff.get_sqrt_samples();
-    double aspect_ratio = static_cast<double>(length) / width;
+    double a_ratio = static_cast<double>(length) / width;
 
     if (length != s_buff.get_length() || width != s_buff.get_width() ||
         s_buff.get_sqrt_samples() != sqrt_samples) {
         std::runtime_error(
             "s_buff must have same width, length, and sqrt_samples");
     }
-
-    // create a tiles so the program can use it for cache blocking purposes
-    int sqrt_tile = 4; // length of tile, generates a 16 pixel tile
-    tile<double> z_tile{sqrt_tile, sqrt_samples};
-    tile<tri_ref> s_tile{sqrt_tile, sqrt_samples};
     for (const auto &mesh : meshes) {
         int tri_index = 0;
         for (triangle tri : mesh->list_of_triangles) {
@@ -40,30 +32,23 @@ void engine::fill_v_s(const projector &projector,
             std::array<Eigen::Vector3d, 3> p_tri =
                 proj_tri(tri, cam_u, cam_v, cam_w, cam_o, v_buff);
 
-            bound_box b_box = create_box(p_tri[0], p_tri[1], p_tri[2],
-                                         aspect_ratio, length, width);
+            // create a bound_box at the pixel level
+            bound_box<int> p_b_box = create_box(p_tri[0], p_tri[1], p_tri[2],
+                                                a_ratio, length, width);
 
-            int box_length = b_box.max_x - b_box.min_x;
-            int box_width = b_box.max_y - b_box.min_y;
+            // create a bound_box at the sub_pixel level
+            bound_box s_b_box = bound_box<int>{
+                p_b_box.min_x * sqrt_samples, p_b_box.max_x * sqrt_samples,
+                p_b_box.min_y * sqrt_samples, p_b_box.max_y * sqrt_samples};
 
-            // chunk into tiles
-            for (int i = 0; i < std::ceil(box_length / sqrt_tile); ++i) {
-                for (int j = 0; j < std::ceil(box_width / sqrt_tile); ++j) {
-                    point tile_coords = point{i, j};
-                    s_tile.pull(s_buff, b_box, tile_coords);
-                    z_tile.pull(z_buff, b_box, tile_coords);
+            int box_length = s_b_box.max_x - s_b_box.min_x;
+            int box_width = s_b_box.max_y - s_b_box.min_y;
 
-                    int top_l_x = b_box.min_x + i * sqrt_tile;
-                    int top_l_y = b_box.max_y + j * sqrt_tile;
-                    point top_l = point{top_l_x, top_l_y};
-
+            for (int i = 0; i < box_length; ++i) {
+                for (int j = 0; j < box_width; ++j) {
                     tri_ref tri = tri_ref{mesh->get_id(), tri_index};
 
-                    on_tile(rast_tri_fn{}, s_tile, z_tile, p_tri, tri, length,
-                            width);
-
-                    s_tile.push(s_buff, b_box, tile_coords);
-                    z_tile.push(z_buff, b_box, tile_coords);
+                    on_buff(rast_s_pix_fn{}
                 }
             }
             tri_index++;
