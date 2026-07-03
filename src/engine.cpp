@@ -5,6 +5,7 @@
 #include <stdexcept>
 #include <vector>
 
+// TODO: add multi_threading, assign each thread it's own b_box
 void engine::fill_v_s(const projector &projector,
                       const std::vector<std::unique_ptr<mesh>> &meshes,
                       const vertex_buffer &v_buff, z_buffer &z_buff,
@@ -36,11 +37,8 @@ void engine::fill_v_s(const projector &projector,
             tri_ref current_val = tri_ref{mesh->get_id(), tri_index};
             engine_helper::ra_tri_args<tri_ref> args{length, width, p_tri,
                                                      current_val};
-            engine_helper::with_buff(
-                [](const bound_box<int> &b, auto &bf, auto &ar) {
-                    engine_helper::rast_tri(b, bf, ar, 0, 0);
-                },
-                p_b_box, buffs, args);
+            engine_helper::with_buff(engine_helper::rast_tri_fn{}, p_b_box,
+                                     buffs, args);
             tri_index++;
         }
     }

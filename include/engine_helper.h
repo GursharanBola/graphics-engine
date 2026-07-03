@@ -50,6 +50,7 @@ template <typename Func, typename BuffType, typename ArgType>
 void with_buff(Func &&job, bound_box<int> &b_box, BuffType &&buffs,
                ArgType &&args);
 
+// args needed for ras_tri
 template <typename T> struct ra_tri_args {
     const int paren_len;
     const int paren_wid;
@@ -57,7 +58,9 @@ template <typename T> struct ra_tri_args {
     const T &val;
 };
 
+// buffers needed for rast_tri
 template <typename T> class ra_tri_buffs {
+  public:
     buffer<T> &buff;
     buffer<double> &z_buff;
     ra_tri_buffs(buffer<T> &b, buffer<double> &z) : buff(b), z_buff(z) {}
@@ -81,6 +84,15 @@ template <typename T> class ra_tri_buffs {
 
   private:
     static constexpr int TILE_SIZE = 4;
+};
+
+// how to call ras_tri in engine.cpp
+class rast_tri_fn {
+  public:
+    template <typename BuffType, typename ArgType>
+    void operator()(const bound_box<int> &b, BuffType &bf, ArgType &ar) const {
+        rast_tri(b, bf, ar, 0, 0);
+    }
 };
 
 template <typename T>
