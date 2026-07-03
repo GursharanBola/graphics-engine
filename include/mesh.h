@@ -7,8 +7,6 @@
 #include <memory>
 #include <vector>
 
-// TODO: there is a tri_ref object and triangle which are the same
-// make this a tri_ref
 typedef struct triangle {
     // note all of these are v_id.
     int point1;
@@ -16,6 +14,8 @@ typedef struct triangle {
     int point3;
 } triangle;
 
+// mesh interface, NOTE that the winding type is CCW for triangles
+// there are reduant checks for winding order however...
 class mesh {
   public:
     std::vector<triangle> list_of_triangles;
@@ -41,6 +41,7 @@ class mesh {
     Eigen::Vector3d color;
 };
 
+// much like RTIOW, main test_object
 class sphere : public mesh {
   public:
     sphere(const int mesh_id, const Eigen::Vector3d center, const double radius,
@@ -61,13 +62,13 @@ class sphere : public mesh {
     double radius;
 };
 
+// a quad useful for backgrounds
 class quad : public mesh {
   public:
     quad(const int mesh_id, const Eigen::Vector3d origin,
          const Eigen::Vector3d u, const Eigen::Vector3d v,
          const Eigen::Vector3d color, const std::shared_ptr<material> mat)
         : mesh(mesh_id, color, mat), origin(origin), u(u), v(v) {};
-
     virtual void build(vertex_buffer &v_buffer) override;
     virtual Eigen::Vector3d
     find_normal(const Eigen::Vector3d point) const override;

@@ -1,6 +1,6 @@
 #include "buffer.h"
 
-// TODO: Follow the one definition rule
+// change the basis onto camera basis
 namespace engine_helper {
 Eigen::Vector3d project_point(const Eigen::Vector3d p1,
                               const Eigen::Vector3d cam_u,
