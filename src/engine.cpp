@@ -63,4 +63,7 @@ void engine::fill_z_s(const projector &projector,
             }
         });
     }
+    for (auto &t : threads) {
+        t.join();
+    }
 }
