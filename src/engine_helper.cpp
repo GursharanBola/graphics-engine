@@ -192,11 +192,10 @@ void with_tiles(Func &&job, bound_box<int> &b_box, BuffType &&buffs,
 }
 
 template <typename Func, typename BuffType, typename ArgType>
-void engine_helper::with_buff(Func &&job, bound_box<int> &b_box,
+void engine_helper::with_buff(Func &&job, const bound_box<int> &b_box,
                               BuffType &&buffs, ArgType &&args) {
     job(b_box, std::forward<BuffType>(buffs), std::forward<ArgType>(args));
 }
-
 template <typename T>
 void engine_helper::rast_tri(const bound_box<int> &b_box,
                              ra_tri_buffs<T> &buffs, ra_tri_args<T> &args,

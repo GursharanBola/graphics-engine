@@ -3,13 +3,15 @@
 #include "engine_helper.h"
 #include <memory>
 #include <stdexcept>
+#include <thread>
 #include <vector>
 
-// TODO: add multi_threading, assign each thread it's own b_box
 void engine::fill_v_s(const projector &projector,
                       const std::vector<std::unique_ptr<mesh>> &meshes,
                       const vertex_buffer &v_buff, z_buffer &z_buff,
                       seen_buffer &s_buff) const {
+    constexpr int num_threads = 4;
+    std::vector<std::thread> threads(num_threads);
     const Eigen::Vector3d cam_u = projector.get_u();
     const Eigen::Vector3d cam_v = projector.get_v();
     const Eigen::Vector3d cam_w = projector.get_w();
@@ -37,8 +39,24 @@ void engine::fill_v_s(const projector &projector,
             tri_ref current_val = tri_ref{mesh->get_id(), tri_index};
             engine_helper::ra_tri_args<tri_ref> args{length, width, p_tri,
                                                      current_val};
-            engine_helper::with_buff(engine_helper::rast_tri_fn{}, p_b_box,
-                                     buffs, args);
+            const int b_box_h = p_b_box.max_y - p_b_box.min_y;
+            const int left = p_b_box.min_x;
+            const int right = p_b_box.max_x;
+            const int bot = p_b_box.max_y;
+            const int t_num_rows = (b_box_h + num_threads - 1) / num_threads;
+            for (int top = 0; top < b_box_h; top += t_num_rows) {
+                const int next_row = top + t_num_rows;
+                const int right = next_row > bot ? bot : next_row;
+                bound_box<int> t_p_b_box{left, right, top, right};
+                std::thread job([t_p_b_box, &buffs, &args]() {
+                    engine_helper::with_buff(engine_helper::rast_tri_fn{},
+                                             t_p_b_box, buffs, args);
+                });
+                threads.push_back(job);
+            }
+            for (auto &t : threads) {
+                t.join();
+            }
             tri_index++;
         }
     }

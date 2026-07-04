@@ -47,7 +47,7 @@ void with_tiles(Func &&job, bound_box<int> &b_box, BuffType &&buffs,
 
 // single thread job on buffers given b_box
 template <typename Func, typename BuffType, typename ArgType>
-void with_buff(Func &&job, bound_box<int> &b_box, BuffType &&buffs,
+void with_buff(Func &&job, const bound_box<int> &b_box, BuffType &&buffs,
                ArgType &&args);
 
 // args needed for ras_tri

@@ -6,9 +6,9 @@
 #include "scene.h"
 #include <memory>
 #include <vector>
+// NOTE: add file parsing and video rendering using interpolation
 
 /**
- *
  * The program for optimal performance will store all lights in their own
  * buffers and then later use these for a shading pass. This is optimal
  * for performance since it optimizes the cache blocking. To avoid for the
