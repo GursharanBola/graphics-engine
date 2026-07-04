@@ -196,6 +196,7 @@ void engine_helper::with_buff(Func &&job, const bound_box<int> &b_box,
                               BuffType &&buffs, ArgType &&args) {
     job(b_box, std::forward<BuffType>(buffs), std::forward<ArgType>(args));
 }
+
 template <typename T>
 void engine_helper::rast_tri(const bound_box<int> &b_box,
                              ra_tri_buffs<T> &buffs, ra_tri_args<T> &args,
@@ -222,7 +223,7 @@ void engine_helper::rast_tri(const bound_box<int> &b_box,
             double world_y = l * inv_pix_y;
             Eigen::Vector3d test{world_x, world_y, 0};
             Eigen::Vector3d bary = get_bary(p_tri.p1, p_tri.p2, p_tri.p3, test);
-            if (bary[0] < 0.0) {
+            if (bary[0] < 0.0 || bary[1] < 0.0 || bary[2] < 0.0) {
                 continue;
             }
             double z_rep =

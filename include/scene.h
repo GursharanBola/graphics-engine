@@ -6,7 +6,6 @@
 #include "mesh.h"
 #include "projector.h"
 #include <memory>
-#include <stdexcept>
 class light;
 
 /*
