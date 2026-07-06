@@ -43,10 +43,10 @@ class color {
 template <typename T> class buffer {
   public:
     T get(const int i, const int j) const {
-        return data[i * (width * sqrt_samples) + j];
+        return data[i * (length * sqrt_samples) + j];
     }
     void set(const int i, const int j, const T &value) {
-        data[i * (width * sqrt_samples) + j] = value;
+        data[i * (length * sqrt_samples) + j] = value;
     }
     buffer(const int length, const int width, const int sqrt_samples = 1)
         : length(length), width(width), sqrt_samples(sqrt_samples) {
@@ -62,9 +62,9 @@ template <typename T> class buffer {
     void clear() { std::fill(data.begin(), data.end(), T{}); }
 
   private:
-    int length;
-    int width;
-    int sqrt_samples;
+    int length;            // in pixels
+    int width;             // in pixels
+    int sqrt_samples;      // in sub_pixels
     std::vector<T> data{}; // intialize buffers as empty
 };
 

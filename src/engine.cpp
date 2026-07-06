@@ -91,7 +91,7 @@ void engine::shade() {
     for (int top = 0; top < width_p; top += t_height) {
         int next_row = top + t_height;
         int bot = next_row > width_p ? width_p : next_row;
-        threads.emplace_back([&]() {
+        threads.emplace_back([&, top, bot]() {
             for (int i = 0; i < length; ++i) {
                 for (int j = top * sqrt_samples; j < bot * sqrt_samples; ++j) {
                     tri_ref cam_tri = s_buff_cam.get(i, j);
@@ -112,5 +112,8 @@ void engine::shade() {
                 }
             }
         });
+    }
+    for (auto &t : threads) {
+        t.join();
     }
 }
