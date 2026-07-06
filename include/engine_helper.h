@@ -107,5 +107,5 @@ void rast_tri(const bound_box<int> &b_box, ra_tri_buffs<T> &buffs,
 void shade_buff(const std::vector<seen_buffer> &s_buffs_light,
                 const std::vector<std::shared_ptr<light>> &lights,
                 const seen_buffer &s_buff_cam_tile, color_buffer &color_tile,
-                const color ambient, const int off_x, const int off_y);
+                const color ambient, const int off_x = 0, const int off_y = 0);
 } // namespace engine_helper

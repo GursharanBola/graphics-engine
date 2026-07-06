@@ -74,26 +74,34 @@ void engine::shade() {
     const int length_p = scene.get_img_length();
     const int width_p = scene.get_img_height();
     const int sqrt_samples = scene.get_sqrt_samples();
-    const int num_lights = scene.s_buffer_lights.size();
-    const int sqrt_tile = consts::TILE_SIZE;
-    seen_buffer s_cam_tile = seen_buffer(sqrt_tile, sqrt_tile, sqrt_samples);
-    color_buffer color_tile = color_buffer(sqrt_tile, sqrt_tile, sqrt_samples);
-
+    std::vector<std::shared_ptr<light>> &lights = scene.lights;
+    std::vector<Eigen::Array3d> light_colors;
+    for (const auto &light : lights) {
+        light_colors.push_back(light->get_color().val);
+    }
+    // TODO: add thread loop for multithreading
     constexpr int NUM_THREADS = consts::NUM_THREADS;
     std::vector<std::thread> threads;
     threads.reserve(NUM_THREADS);
-    // TODO: add thread loop for multithreading
-    const int num_col_tiles = (length_p * sqrt_tile - 1) / sqrt_tile;
-    const int num_row_tiles = (width_p * sqrt_tile - 1) / sqrt_tile;
-    for (int off_x = 0; off_x < num_col_tiles; ++off_x) {
-        for (int off_y = 0; off_y < num_row_tiles; ++off_y) {
-            engine_helper::pull(scene.s_buffer_cam, s_cam_tile, off_x, off_y);
-            engine_helper::pull(scene.col_buffer, color_tile, off_x, off_y);
-            engine_helper::shade_buff(scene.s_buffer_lights, scene.lights,
-                                      s_cam_tile, color_tile,
-                                      scene.get_ambient_light(), off_x, off_y);
-            engine_helper::push(scene.s_buffer_cam, s_cam_tile, off_x, off_y);
-            engine_helper::pull(scene.col_buffer, color_tile, off_x, off_y);
+    seen_buffer &s_buff_cam = scene.s_buffer_cam;
+    color ambient = scene.ambient_light;
+    std::vector<seen_buffer> &s_buffs_light = scene.s_buffer_lights;
+    color_buffer color_buff = scene.col_buffer;
+    for (int i = 0; i < length_p * sqrt_samples; ++i) {
+        for (int j = 0; j < width_p * sqrt_samples; ++j) {
+            tri_ref cam_tri = s_buff_cam.get(i, j);
+            Eigen::Array3d total_light = ambient.val;
+            for (size_t index = 0; index < s_buffs_light.size(); ++index) {
+                if (cam_tri == s_buffs_light[index].get(i, j)) {
+                    total_light += light_colors[index];
+                }
+            }
+            Eigen::Array3d current_pix = color_buff.get(i, j).val;
+            Eigen::Array3d final_color_val = total_light * current_pix;
+            color new_color = color{final_color_val(0), final_color_val(1),
+                                    final_color_val(2)};
+            new_color.clamp();
+            color_buff.set(i, j, new_color);
         }
     }
 }

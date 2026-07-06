@@ -80,6 +80,7 @@ class scene {
         v_buffer.clear();
         z_buffer_lights.clear();
         s_buffer_lights.clear();
+        ambient_light = color{0, 0, 0};
     }
 
     int get_img_length() { return img_length; }

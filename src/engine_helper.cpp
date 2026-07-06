@@ -251,38 +251,3 @@ void engine_helper::rast_tri(const bound_box<int> &b_box,
         }
     }
 }
-
-void engine_helper::shade_buff(
-    const std::vector<seen_buffer> &s_buffs_light,
-    const std::vector<std::shared_ptr<light>> &lights,
-    const seen_buffer &s_buff_cam_tile, color_buffer &color_tile,
-    const color ambient, const int off_x, const int off_y) {
-
-    const int sqrt_samples = s_buff_cam_tile.get_sqrt_samples();
-    const int tile_len = consts::TILE_SIZE * sqrt_samples;
-    const int s_off_x = sqrt_samples * off_x;
-    const int s_off_y = sqrt_samples * off_y;
-    std::vector<Eigen::Array3d> light_colors;
-    for (const auto &light : lights) {
-        light_colors.push_back(light->get_color().val);
-    }
-    for (int i = s_off_x; i < s_off_x + tile_len; ++i) {
-        for (int j = s_off_y; j < s_off_y + tile_len; ++j) {
-            int x = i - s_off_x;
-            int y = j - s_off_y;
-            tri_ref cam_tri = s_buff_cam_tile.get(x, y);
-            Eigen::Array3d total_light = ambient.val;
-            for (size_t index = 0; index < s_buffs_light.size(); ++index) {
-                if (cam_tri == s_buffs_light[index].get(i, j)) {
-                    total_light += light_colors[index];
-                }
-            }
-            Eigen::Array3d current_pix = color_tile.get(x, y).val;
-            Eigen::Array3d final_color_val = total_light * current_pix;
-            color new_color = color{final_color_val(0), final_color_val(1),
-                                    final_color_val(2)};
-            new_color.clamp();
-            color_tile.set(x, y, new_color);
-        }
-    }
-}
