@@ -1,7 +1,5 @@
 #include "engine_helper.h"
 #include "consts.h"
-#include "projector.h"
-#include <memory>
 
 Eigen::Vector3d engine_helper::project_point(const Eigen::Vector3d p1,
                                              const Eigen::Vector3d cam_u,
