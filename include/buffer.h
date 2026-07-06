@@ -42,10 +42,10 @@ class color {
 
 template <typename T> class buffer {
   public:
-    virtual T get(const int i, const int j) const {
+    T get(const int i, const int j) const {
         return data[i * (width * sqrt_samples) + j];
     }
-    virtual void set(const int i, const int j, const T &value) {
+    void set(const int i, const int j, const T &value) {
         data[i * (width * sqrt_samples) + j] = value;
     }
     buffer(const int length, const int width, const int sqrt_samples = 1)
@@ -57,8 +57,9 @@ template <typename T> class buffer {
     int get_length_p() const { return length; }
     int get_width_p() const { return width; }
     int get_sqrt_samples() const { return sqrt_samples; }
-    int get_start() const { return data.begin(); }
-    void clear() { data.clear(); }
+    auto get_start() const { return data.begin(); }
+    // assumes custom types have default constructor
+    void clear() { std::fill(data.begin(), data.end(), T{}); }
 
   private:
     int length;

@@ -86,7 +86,7 @@ void engine::shade() {
     seen_buffer &s_buff_cam = scene.s_buffer_cam;
     color ambient = scene.ambient_light;
     std::vector<seen_buffer> &s_buffs_light = scene.s_buffer_lights;
-    color_buffer color_buff = scene.col_buffer;
+    color_buffer &color_buff = scene.col_buffer;
     for (int i = 0; i < length_p * sqrt_samples; ++i) {
         for (int j = 0; j < width_p * sqrt_samples; ++j) {
             tri_ref cam_tri = s_buff_cam.get(i, j);
