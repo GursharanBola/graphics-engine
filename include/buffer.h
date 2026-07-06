@@ -28,33 +28,34 @@ template <typename T> struct bound_box {
     T min_y, max_y = 0;
 };
 
-struct mesh_color {
-    tri_ref tri;
-    int red = 0;
-    int green = 0;
-    int blue = 0;
+// colors hold values [0, 1]
+class color {
+  public:
+    Eigen::Array3d val;
+    color() : val(0.0, 0.0, 0.0) {}
+    color(double r, double g, double b) : val(r, g, b) {}
+    double r() const { return val[0]; }
+    double g() const { return val[1]; }
+    double b() const { return val[2]; }
+    void clamp() { val = val.min(1.0).max(0.0); }
 };
 
 template <typename T> class buffer {
   public:
-    virtual ~buffer() = default;
-
     virtual T get(const int i, const int j) const {
-        return data[i * width + j];
+        return data[i * (width * sqrt_samples) + j];
     }
     virtual void set(const int i, const int j, const T &value) {
-        data[i * width + j] = value;
+        data[i * (width * sqrt_samples) + j] = value;
     }
-    // default number of sqrt_samples is 1
     buffer(const int length, const int width, const int sqrt_samples = 1)
         : length(length), width(width), sqrt_samples(sqrt_samples) {
         data = std::vector<T>(length * sqrt_samples * width * sqrt_samples);
     };
-
-    int get_length() const { return length; }
-    int get_width() const { return width; }
-    int get_length_p() const { return length / sqrt_samples; }
-    int get_width_p() const { return width / sqrt_samples; }
+    int get_length() const { return length * sqrt_samples; }
+    int get_width() const { return width * sqrt_samples; }
+    int get_length_p() const { return length; }
+    int get_width_p() const { return width; }
     int get_sqrt_samples() const { return sqrt_samples; }
     int get_start() const { return data.begin(); }
     void clear() { data.clear(); }
@@ -73,10 +74,8 @@ class z_buffer : public buffer<double> {
 
     void set_sample(const int i, const int j, const int sam_i, const int sam_j,
                     const double val) {
-
         int absolute_i = (i * get_sqrt_samples()) + sam_i;
         int absolute_j = (j * get_sqrt_samples()) + sam_j;
-
         set(absolute_i, absolute_j, val);
     }
 };
@@ -85,25 +84,23 @@ class seen_buffer : public buffer<tri_ref> {
   public:
     seen_buffer(const int length, const int width, const int sqrt_samples)
         : buffer(length, width, sqrt_samples) {};
-
     void set_sample(const int i, const int j, const int sam_i, const int sam_j,
                     const tri_ref val) {
-
         int absolute_i = (i * get_sqrt_samples()) + sam_i;
         int absolute_j = (j * get_sqrt_samples()) + sam_j;
-
         set(absolute_i, absolute_j, val);
     }
 };
 
-class color_buffer : public buffer<mesh_color> {
+// store a color at each sub_pixel
+class color_buffer : public buffer<color> {
   public:
     color_buffer(const int length, const int width, const int sqrt_samples)
-        : buffer(length * sqrt_samples * sqrt_samples, width) {}
-    bool set_color(const int i, const int j, const tri_ref tri,
-                   Eigen::Vector3d color);
-    Eigen::Vector3d get_color(const int i, const int j,
-                              const tri_ref tri) const;
+        : buffer(length * sqrt_samples, width * sqrt_samples) {}
+    bool set_color(const int pix_x, const int pix_y, const int s_pix_x,
+                   const int s_pix_y, const color &color);
+    color get_color(const int pix_x, const int pix_y, const int s_pix_x,
+                    const int s_pix_y) const;
 };
 
 // simple buffer, has no sub-pixels
@@ -111,11 +108,9 @@ class image_buffer : public buffer<int> {
   public:
     image_buffer(const int length, const int width, const int num_channels)
         : buffer(length * num_channels, width) {};
-
     bool set_color(const int i, const int j, Eigen::Vector3d color);
     int draw_png(std::string filename, int width, int height, int channels,
                  void *data, int stride);
-
     Eigen::Vector3d get_color(const int i, const int j) const;
 };
 

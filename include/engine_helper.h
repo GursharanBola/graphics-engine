@@ -1,4 +1,7 @@
 #include "buffer.h"
+#include "consts.h"
+#include "projector.h"
+#include <memory>
 
 // change the basis onto camera basis
 namespace engine_helper {
@@ -66,7 +69,7 @@ template <typename T> class ra_tri_buffs {
     ra_tri_buffs(buffer<T> &b, buffer<double> &z) : buff(b), z_buff(z) {}
     ra_tri_buffs make_tiles(const int sqrt_tile) const {
         const int sqrt_samples = this->buff.get_sqrt_samples();
-        const int side_len = TILE_SIZE * sqrt_samples;
+        const int side_len = consts::TILE_SIZE * sqrt_samples;
         buffer<T> tile{side_len, side_len};
         buffer<double> z_tile{side_len, side_len};
         return ra_tri_buffs{tile, z_tile};
@@ -81,9 +84,6 @@ template <typename T> class ra_tri_buffs {
         push(buff, main_b.buff, offset_x, offset_y);
         push(z_buff, main_b.z_buff, offset_x, offset_y);
     }
-
-  private:
-    static constexpr int TILE_SIZE = 4;
 };
 
 // how to call ras_tri in engine.cpp
@@ -98,4 +98,14 @@ class rast_tri_fn {
 template <typename T>
 void rast_tri(const bound_box<int> &b_box, ra_tri_buffs<T> &buffs,
               ra_tri_args<T> &args, const int off_x = 0, const int off_y = 0);
+
+// off_x and off_y are at the pixel level, this a tile/buff level funct
+//
+// function assumes color_tile and s_buff_cam_tile is a tile with dimension
+// consts::TILE_SIZE. the reason is pull is called before which checks ensures
+// the buffer is a tile
+void shade_buff(const std::vector<seen_buffer> &s_buffs_light,
+                const std::vector<std::shared_ptr<light>> &lights,
+                const seen_buffer &s_buff_cam_tile, color_buffer &color_tile,
+                const color ambient, const int off_x, const int off_y);
 } // namespace engine_helper

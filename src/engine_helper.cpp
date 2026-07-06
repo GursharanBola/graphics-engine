@@ -1,4 +1,7 @@
 #include "engine_helper.h"
+#include "consts.h"
+#include "projector.h"
+#include <memory>
 
 Eigen::Vector3d engine_helper::project_point(const Eigen::Vector3d p1,
                                              const Eigen::Vector3d cam_u,
@@ -135,7 +138,8 @@ void push(buffer<T> &src, buffer<T> &dest, const int offset_x,
           const int offset_y) {
     const int sqrt_tile = src.get_length_p();
     const int tile_w = src.get_width_p();
-    if (sqrt_tile != tile_w) {
+    constexpr int TILE_SIZE = consts::TILE_SIZE;
+    if (sqrt_tile != tile_w || sqrt_tile == TILE_SIZE) {
         std::runtime_error("src is a tile, it must be square");
     }
     const int sqrt_samples = src.get_sqrt_samples();
@@ -169,10 +173,12 @@ void push(buffer<T> &src, buffer<T> &dest, const int offset_x,
     }
 }
 
+// these functions kind of got hard to work with, if the function is simple
+// enough I avoid using these functions
 template <typename Func, typename BuffType, typename ArgType>
 void with_tiles(Func &&job, bound_box<int> &b_box, BuffType &&buffs,
                 ArgType &&args) {
-    constexpr int sqrt_tile = 4;
+    constexpr int sqrt_tile = consts::TILE_SIZE;
     int sqrt_samples = buffs.get_sqrt_samples();
     int box_len = b_box.max_x - b_box.min_x;
     int box_wid = b_box.max_y - b_box.min_y;
@@ -214,9 +220,16 @@ void engine_helper::rast_tri(const bound_box<int> &b_box,
     const double inv_pix_x = 1.0 / s_pix_to_world_x;
     const double inv_pix_y = 1.0 / s_pix_to_world_y;
     const raw_tri &p_tri = args.p_tri;
-    const double inv_p1_z = 1.0 / p_tri.p1[2];
-    const double inv_p2_z = 1.0 / p_tri.p2[2];
-    const double inv_p3_z = 1.0 / p_tri.p3[2];
+    const double p1_z = p_tri.p1[2];
+    const double p2_z = p_tri.p2[2];
+    const double p3_z = p_tri.p3[2];
+    const double inv_p1_z = 1.0 / p1_z;
+    const double inv_p2_z = 1.0 / p2_z;
+    const double inv_p3_z = 1.0 / p3_z;
+    const double near_plane = 0.1;
+    if (p1_z < near_plane || p2_z < near_plane || p3_z < near_plane) {
+        return;
+    }
     for (int k = left; k < right; ++k) {
         double world_x = k * inv_pix_x;
         for (int l = top; l < bot; ++l) {
@@ -228,14 +241,48 @@ void engine_helper::rast_tri(const bound_box<int> &b_box,
             }
             double z_rep =
                 bary[0] * inv_p1_z + bary[1] * inv_p2_z + bary[2] * inv_p3_z;
-            double z_sub = (z_rep > 0) ? (1.0 / z_rep)
-                                       : std::numeric_limits<double>::max();
+            double z_sub = 1.0 / z_rep;
             int x = k - off_x;
             int y = l - off_y;
             if (buffs.z_buff.get(x, y) > z_sub) {
                 buffs.z_buff.set(x, y, z_sub);
                 buffs.buff.set(x, y, args.val);
             }
+        }
+    }
+}
+
+void engine_helper::shade_buff(
+    const std::vector<seen_buffer> &s_buffs_light,
+    const std::vector<std::shared_ptr<light>> &lights,
+    const seen_buffer &s_buff_cam_tile, color_buffer &color_tile,
+    const color ambient, const int off_x, const int off_y) {
+
+    const int sqrt_samples = s_buff_cam_tile.get_sqrt_samples();
+    const int tile_len = consts::TILE_SIZE * sqrt_samples;
+    const int s_off_x = sqrt_samples * off_x;
+    const int s_off_y = sqrt_samples * off_y;
+    std::vector<Eigen::Array3d> light_colors;
+    for (const auto &light : lights) {
+        light_colors.push_back(light->get_color().val);
+    }
+    for (int i = s_off_x; i < s_off_x + tile_len; ++i) {
+        for (int j = s_off_y; j < s_off_y + tile_len; ++j) {
+            int x = i - s_off_x;
+            int y = j - s_off_y;
+            tri_ref cam_tri = s_buff_cam_tile.get(x, y);
+            Eigen::Array3d total_light = ambient.val;
+            for (size_t index = 0; index < s_buffs_light.size(); ++index) {
+                if (cam_tri == s_buffs_light[index].get(i, j)) {
+                    total_light += light_colors[index];
+                }
+            }
+            Eigen::Array3d current_pix = color_tile.get(x, y).val;
+            Eigen::Array3d final_color_val = total_light * current_pix;
+            color new_color = color{final_color_val(0), final_color_val(1),
+                                    final_color_val(2)};
+            new_color.clamp();
+            color_tile.set(x, y, new_color);
         }
     }
 }

@@ -1,5 +1,6 @@
 #include "engine.h"
 #include "buffer.h"
+#include "consts.h"
 #include "engine_helper.h"
 #include <memory>
 #include <stdexcept>
@@ -25,7 +26,7 @@ void engine::fill_z_s(const projector &projector,
         throw std::runtime_error(
             "s_buff must have same width, length, and sqrt_samples");
     }
-    constexpr int NUM_THREADS = 4;
+    constexpr int NUM_THREADS = consts::NUM_THREADS;
     engine_helper::ra_tri_buffs<tri_ref> buffs{s_buff, z_buff};
     std::vector<std::thread> threads;
     threads.reserve(NUM_THREADS);
@@ -65,5 +66,34 @@ void engine::fill_z_s(const projector &projector,
     }
     for (auto &t : threads) {
         t.join();
+    }
+}
+
+// TODO: debug everything that was changed reltaed to implimenting this function
+void engine::shade() {
+    const int length_p = scene.get_img_length();
+    const int width_p = scene.get_img_height();
+    const int sqrt_samples = scene.get_sqrt_samples();
+    const int num_lights = scene.s_buffer_lights.size();
+    const int sqrt_tile = consts::TILE_SIZE;
+    seen_buffer s_cam_tile = seen_buffer(sqrt_tile, sqrt_tile, sqrt_samples);
+    color_buffer color_tile = color_buffer(sqrt_tile, sqrt_tile, sqrt_samples);
+
+    constexpr int NUM_THREADS = consts::NUM_THREADS;
+    std::vector<std::thread> threads;
+    threads.reserve(NUM_THREADS);
+    // TODO: add thread loop for multithreading
+    const int num_col_tiles = (length_p * sqrt_tile - 1) / sqrt_tile;
+    const int num_row_tiles = (width_p * sqrt_tile - 1) / sqrt_tile;
+    for (int off_x = 0; off_x < num_col_tiles; ++off_x) {
+        for (int off_y = 0; off_y < num_row_tiles; ++off_y) {
+            engine_helper::pull(scene.s_buffer_cam, s_cam_tile, off_x, off_y);
+            engine_helper::pull(scene.col_buffer, color_tile, off_x, off_y);
+            engine_helper::shade_buff(scene.s_buffer_lights, scene.lights,
+                                      s_cam_tile, color_tile,
+                                      scene.get_ambient_light(), off_x, off_y);
+            engine_helper::push(scene.s_buffer_cam, s_cam_tile, off_x, off_y);
+            engine_helper::pull(scene.col_buffer, color_tile, off_x, off_y);
+        }
     }
 }
