@@ -69,39 +69,48 @@ void engine::fill_z_s(const projector &projector,
     }
 }
 
-// TODO: debug everything that was changed reltaed to implimenting this function
 void engine::shade() {
     const int length_p = scene.get_img_length();
     const int width_p = scene.get_img_height();
     const int sqrt_samples = scene.get_sqrt_samples();
+    const int length = length_p * sqrt_samples;
+    const int width = width_p * sqrt_samples;
     std::vector<std::shared_ptr<light>> &lights = scene.lights;
     std::vector<Eigen::Array3d> light_colors;
     for (const auto &light : lights) {
         light_colors.push_back(light->get_color().val);
     }
-    // TODO: add thread loop for multithreading
-    constexpr int NUM_THREADS = consts::NUM_THREADS;
-    std::vector<std::thread> threads;
-    threads.reserve(NUM_THREADS);
     seen_buffer &s_buff_cam = scene.s_buffer_cam;
     color ambient = scene.ambient_light;
     std::vector<seen_buffer> &s_buffs_light = scene.s_buffer_lights;
     color_buffer &color_buff = scene.col_buffer;
-    for (int i = 0; i < length_p * sqrt_samples; ++i) {
-        for (int j = 0; j < width_p * sqrt_samples; ++j) {
-            tri_ref cam_tri = s_buff_cam.get(i, j);
-            Eigen::Array3d total_light = ambient.val;
-            for (size_t index = 0; index < s_buffs_light.size(); ++index) {
-                if (cam_tri == s_buffs_light[index].get(i, j)) {
-                    total_light += light_colors[index];
+    constexpr int NUM_THREADS = consts::NUM_THREADS;
+    std::vector<std::thread> threads;
+    threads.reserve(NUM_THREADS);
+    const int t_height = (width_p + NUM_THREADS - 1) / NUM_THREADS;
+    for (int top = 0; top < width_p; top += t_height) {
+        int next_row = top + t_height;
+        int bot = next_row > width_p ? width_p : next_row;
+        threads.emplace_back([&]() {
+            for (int i = 0; i < length; ++i) {
+                for (int j = top * sqrt_samples; j < bot * sqrt_samples; ++j) {
+                    tri_ref cam_tri = s_buff_cam.get(i, j);
+                    Eigen::Array3d total_light = ambient.val;
+                    for (size_t index = 0; index < s_buffs_light.size();
+                         ++index) {
+                        if (cam_tri == s_buffs_light[index].get(i, j)) {
+                            total_light += light_colors[index];
+                        }
+                    }
+                    Eigen::Array3d current_pix = color_buff.get(i, j).val;
+                    Eigen::Array3d final_color_val = total_light * current_pix;
+                    color new_color =
+                        color{final_color_val(0), final_color_val(1),
+                              final_color_val(2)};
+                    new_color.clamp();
+                    color_buff.set(i, j, new_color);
                 }
             }
-            Eigen::Array3d current_pix = color_buff.get(i, j).val;
-            Eigen::Array3d final_color_val = total_light * current_pix;
-            color new_color = color{final_color_val(0), final_color_val(1),
-                                    final_color_val(2)};
-            new_color.clamp();
-            color_buff.set(i, j, new_color);
-        }
+        });
     }
 }
