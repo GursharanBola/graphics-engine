@@ -20,42 +20,43 @@ class mesh {
   public:
     std::vector<triangle> list_of_triangles;
 
-    mesh(const int mesh_id,
-         const Eigen::Vector3d color = Eigen::Vector3d::Zero(),
+    mesh(const int mesh_id, const color mesh_color,
          const std::shared_ptr<material> mat = nullptr,
          const int num_samples = 1)
-        : mesh_id(mesh_id), num_samples(num_samples), color(color), mat(mat) {}
+        : mesh_id(mesh_id), num_samples(num_samples), mesh_color(mesh_color),
+          mat(mat) {}
 
     virtual ~mesh() = default;
     virtual void build(vertex_buffer &v_buffer) = 0;
     virtual Eigen::Vector3d find_normal(const Eigen::Vector3d point) const = 0;
 
-    inline int get_id() const { return mesh_id; }
-    inline int get_samples() const { return num_samples; }
-    inline Eigen::Vector3d get_color() const { return color; }
+    int get_id() const { return mesh_id; }
+    int get_samples() const { return num_samples; }
+    color get_color() const { return mesh_color; }
 
   protected:
     std::shared_ptr<material> mat;
     int mesh_id;
     int num_samples;
-    Eigen::Vector3d color;
+    color mesh_color;
+    friend class engine;
 };
 
 // much like RTIOW, main test_object
 class sphere : public mesh {
   public:
     sphere(const int mesh_id, const Eigen::Vector3d center, const double radius,
-           const Eigen::Vector3d color, const std::shared_ptr<material> mat,
+           const color mesh_color, const std::shared_ptr<material> mat,
            const int num_samples)
-        : mesh(mesh_id, color, mat, num_samples), center(center),
+        : mesh(mesh_id, mesh_color, mat, num_samples), center(center),
           radius(radius) {}
 
     virtual void build(vertex_buffer &v_buffer) override;
     virtual Eigen::Vector3d
     find_normal(const Eigen::Vector3d point) const override;
 
-    inline Eigen::Vector3d get_center() const { return center; }
-    inline double get_radius() const { return radius; }
+    Eigen::Vector3d get_center() const { return center; }
+    double get_radius() const { return radius; }
 
   private:
     Eigen::Vector3d center;
@@ -67,14 +68,14 @@ class quad : public mesh {
   public:
     quad(const int mesh_id, const Eigen::Vector3d origin,
          const Eigen::Vector3d u, const Eigen::Vector3d v,
-         const Eigen::Vector3d color, const std::shared_ptr<material> mat)
-        : mesh(mesh_id, color, mat), origin(origin), u(u), v(v) {};
+         const color mesh_color, const std::shared_ptr<material> mat)
+        : mesh(mesh_id, mesh_color, mat), origin(origin), u(u), v(v) {};
     virtual void build(vertex_buffer &v_buffer) override;
     virtual Eigen::Vector3d
     find_normal(const Eigen::Vector3d point) const override;
 
-    inline Eigen::Vector3d get_u() { return u; }
-    inline Eigen::Vector3d get_v() { return v; }
+    Eigen::Vector3d get_u() { return u; }
+    Eigen::Vector3d get_v() { return v; }
 
   private:
     Eigen::Vector3d u;

@@ -56,10 +56,12 @@ engine_helper::create_box(const Eigen::Vector3d p1, const Eigen::Vector3d p2,
                           const Eigen::Vector3d p3, const double aspect_ratio,
                           const int img_length, const int img_width) {
     bound_box<double> w_bbox = w_box(p1, p2, p3, aspect_ratio);
-    int left_pixel = std::ceil((w_bbox.min_x / aspect_ratio + 1) * img_length);
-    int right_pixel = std::ceil((w_bbox.max_x / aspect_ratio + 1) * img_length);
-    int top_pixel = std::ceil(1 - 0.5 * (w_bbox.min_y + 1) * img_width);
-    int bot_pixel = std::ceil(1 - 0.5 * (w_bbox.max_y + 1) * img_width);
+    int left_pixel =
+        std::floor(0.5 * (w_bbox.min_x / aspect_ratio + 1.0) * img_length);
+    int right_pixel =
+        std::ceil(0.5 * (w_bbox.max_x / aspect_ratio + 1.0) * img_length);
+    int top_pixel = std::floor((1.0 - 0.5 * (w_bbox.max_y + 1.0)) * img_width);
+    int bot_pixel = std::ceil((1.0 - 0.5 * (w_bbox.min_y + 1.0)) * img_width);
     return bound_box<int>{left_pixel, right_pixel, top_pixel, bot_pixel};
 }
 
@@ -213,10 +215,8 @@ void engine_helper::rast_tri(const bound_box<int> &b_box,
     const int right = b_box.max_x * sqrt_samples;
     const int top = b_box.min_y * sqrt_samples;
     const int bot = b_box.max_y * sqrt_samples;
-    const double s_pix_to_world_x = paren_len * 2 * a_ratio - a_ratio;
-    const double s_pix_to_world_y = paren_wid * 2 - 1;
-    const double inv_pix_x = 1.0 / s_pix_to_world_x;
-    const double inv_pix_y = 1.0 / s_pix_to_world_y;
+    const double s_pix_to_world_x = 2.0 * a_ratio / paren_len;
+    const double s_pix_to_world_y = 2.0 / paren_wid;
     const raw_tri &p_tri = args.p_tri;
     const double p1_z = p_tri.p1[2];
     const double p2_z = p_tri.p2[2];
@@ -229,9 +229,9 @@ void engine_helper::rast_tri(const bound_box<int> &b_box,
         return;
     }
     for (int k = left; k < right; ++k) {
-        double world_x = k * inv_pix_x;
+        double world_x = k * s_pix_to_world_x - a_ratio;
         for (int l = top; l < bot; ++l) {
-            double world_y = l * inv_pix_y;
+            double world_y = l * s_pix_to_world_y - 1;
             Eigen::Vector3d test{world_x, world_y, 0};
             Eigen::Vector3d bary = get_bary(p_tri.p1, p_tri.p2, p_tri.p3, test);
             if (bary[0] < 0.0 || bary[1] < 0.0 || bary[2] < 0.0) {

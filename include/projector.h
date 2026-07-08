@@ -32,13 +32,18 @@ class light : public projector {
   public:
     light(const Eigen::Vector3d &origin, const Eigen::Vector3d &cam_u,
           const Eigen::Vector3d &cam_v, const Eigen::Vector3d &cam_w,
-          const color &l_color, const double focal_dist)
-        : projector(origin, cam_u, cam_v, cam_w, focal_dist), l_color(l_color) {
-    }
+          const color &l_color, const double I_d, const double I_s,
+          const double focal_dist)
+        : projector(origin, cam_u, cam_v, cam_w, focal_dist), l_color(l_color),
+          I_d(I_d), I_s(I_s) {}
     color get_color() const { return l_color; }
-    // TODO: re-determine what functions these projectors should have
+    double get_I_d() const { return I_d; }
+    double get_I_s() const { return I_s; }
+
   private:
     color l_color;
+    double I_d;
+    double I_s;
 };
 
 // cameras will not be in a scene and instead will be outside for reasons

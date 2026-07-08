@@ -31,13 +31,13 @@ template <typename T> struct bound_box {
 // colors hold values [0, 1]
 class color {
   public:
-    Eigen::Array3d val;
+    Eigen::Vector3d val;
     color() : val(0.0, 0.0, 0.0) {}
     color(double r, double g, double b) : val(r, g, b) {}
     double r() const { return val[0]; }
     double g() const { return val[1]; }
     double b() const { return val[2]; }
-    void clamp() { val = val.min(1.0).max(0.0); }
+    void clamp() { val = val.cwiseMin(1.0).cwiseMax(0.0); }
 };
 
 template <typename T> class buffer {
