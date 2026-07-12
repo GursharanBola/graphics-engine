@@ -12,10 +12,10 @@ void engine::fill_z_s(const projector &projector,
                       const std::vector<std::shared_ptr<mesh>> &meshes,
                       const vertex_buffer &v_buff, z_buffer &z_buff,
                       seen_buffer &s_buff) const {
-    const Eigen::Vector3d cam_u = projector.get_u();
-    const Eigen::Vector3d cam_v = projector.get_v();
-    const Eigen::Vector3d cam_w = projector.get_w();
-    const Eigen::Vector3d cam_o = projector.get_o();
+    const Eigen::Vector3d &cam_u = projector.get_u();
+    const Eigen::Vector3d &cam_v = projector.get_v();
+    const Eigen::Vector3d &cam_w = projector.get_w();
+    const Eigen::Vector3d &cam_o = projector.get_o();
     const double f_len = projector.get_f_len();
     const int length = z_buff.get_length();
     const int width = z_buff.get_width();

@@ -79,7 +79,7 @@ template <typename T> class ra_tri_buffs {
     }
 };
 
-// function will mange the triangles and and own information if desired
+// function will generate buffers and allow us to manage the ptrs to data
 template <typename T> struct ra_tri_tile_manager {
     std::unique_ptr<buffer<T>> owned_buff;
     std::unique_ptr<buffer<double>> owned_z_buff;
@@ -90,7 +90,7 @@ template <typename T> struct ra_tri_tile_manager {
           view(owned_buff.get(), owned_z_buff.get()) {}
 };
 
-// helper function to help create tiles
+// helper function to help create managers which can be used in the program
 template <typename T>
 ra_tri_tile_manager<T> make_tiles_for(ra_tri_buffs<T> &main_b, int sqrt_tile) {
     int sqrt_samples = main_b.buff->get_sqrt_samples();
