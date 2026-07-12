@@ -12,7 +12,6 @@ class light;
  * Scenes are a container for the buffers that the program uses. Also note
  * that since the program renders one color at a time and one mesh at a time
  * only one colorbuffer is needed
- *
  */
 
 class scene {
@@ -82,12 +81,13 @@ class scene {
         z_buffer_lights.clear();
         s_buffer_lights.clear();
         l_color = color{0, 0, 0};
+        ambient_light = 0.0;
     }
 
-    int get_img_length() { return img_length; }
-    int get_img_height() { return img_height; }
-    int get_num_channels() { return num_channels; }
-    int get_sqrt_samples() { return sqrt_samples; }
+    int get_img_length() const { return img_length; }
+    int get_img_height() const { return img_height; }
+    int get_num_channels() const { return num_channels; }
+    int get_sqrt_samples() const { return sqrt_samples; }
 
   protected:
     image_buffer img;

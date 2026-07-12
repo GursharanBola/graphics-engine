@@ -16,16 +16,16 @@ struct raw_tri {
 };
 
 struct tri_ref {
-    int mesh_id;
-    int tri_index;
+    int mesh_id = -1;
+    int tri_index = -1;
     bool operator==(const tri_ref &other) const {
         return mesh_id == other.mesh_id && tri_index == other.tri_index;
     }
 };
 
 template <typename T> struct bound_box {
-    T min_x, max_x = 0;
-    T min_y, max_y = 0;
+    T min_x = 0, max_x = 0;
+    T min_y = 0, max_y = 0;
 };
 
 // colors hold values [0, 1]
@@ -42,16 +42,17 @@ class color {
 
 template <typename T> class buffer {
   public:
+    virtual ~buffer() = default;
     T get(const int i, const int j) const {
-        return data[i * (length * sqrt_samples) + j];
+        return data[j * (length * sqrt_samples) + i];
     }
     void set(const int i, const int j, const T &value) {
-        data[i * (length * sqrt_samples) + j] = value;
+        data[j * (length * sqrt_samples) + i] = value;
     }
     buffer(const int length, const int width, const int sqrt_samples = 1)
-        : length(length), width(width), sqrt_samples(sqrt_samples) {
-        data = std::vector<T>(length * sqrt_samples * width * sqrt_samples);
-    };
+        : length(length), width(width), sqrt_samples(sqrt_samples),
+          data(length * sqrt_samples * width * sqrt_samples) {}
+
     int get_length() const { return length * sqrt_samples; }
     int get_width() const { return width * sqrt_samples; }
     int get_length_p() const { return length; }
@@ -62,10 +63,10 @@ template <typename T> class buffer {
     void clear() { std::fill(data.begin(), data.end(), T{}); }
 
   private:
-    int length;            // in pixels
-    int width;             // in pixels
-    int sqrt_samples;      // in sub_pixels
-    std::vector<T> data{}; // intialize buffers as empty
+    int length;          // in pixels
+    int width;           // in pixels
+    int sqrt_samples;    // in sub_pixels
+    std::vector<T> data; // intialize buffers as empty
 };
 
 class z_buffer : public buffer<double> {
@@ -97,7 +98,7 @@ class seen_buffer : public buffer<tri_ref> {
 class color_buffer : public buffer<color> {
   public:
     color_buffer(const int length, const int width, const int sqrt_samples)
-        : buffer(length * sqrt_samples, width * sqrt_samples) {}
+        : buffer(length, width, sqrt_samples) {}
     bool set_color(const int pix_x, const int pix_y, const int s_pix_x,
                    const int s_pix_y, const color &color);
     color get_color(const int pix_x, const int pix_y, const int s_pix_x,
@@ -120,18 +121,10 @@ class vertex_buffer {
     vertex_buffer() = default;
     void add(const Eigen::Vector3d &v) { data.push_back(v); }
     Eigen::Vector3d get(const int i) const { return data[i]; }
-    int size() const { return data.size(); }
+    size_t size() const { return data.size(); }
     void clear() { data.clear(); }
 
   private:
     std::vector<Eigen::Vector3d> data;
 };
-
-inline double clamp(double x, double min, double max) {
-    if (x < min)
-        return min;
-    if (x > max)
-        return max;
-    return x;
-}
 #endif

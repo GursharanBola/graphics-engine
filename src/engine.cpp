@@ -9,13 +9,14 @@
 #include <vector>
 
 void engine::fill_z_s(const projector &projector,
-                      const std::vector<std::unique_ptr<mesh>> &meshes,
+                      const std::vector<std::shared_ptr<mesh>> &meshes,
                       const vertex_buffer &v_buff, z_buffer &z_buff,
                       seen_buffer &s_buff) const {
     const Eigen::Vector3d cam_u = projector.get_u();
     const Eigen::Vector3d cam_v = projector.get_v();
     const Eigen::Vector3d cam_w = projector.get_w();
     const Eigen::Vector3d cam_o = projector.get_o();
+    const double f_len = projector.get_f_len();
     const int length = z_buff.get_length();
     const int width = z_buff.get_width();
     const int length_p = z_buff.get_width_p();
@@ -28,7 +29,7 @@ void engine::fill_z_s(const projector &projector,
             "s_buff must have same width, length, and sqrt_samples");
     }
     constexpr int NUM_THREADS = consts::NUM_THREADS;
-    engine_helper::ra_tri_buffs<tri_ref> buffs{s_buff, z_buff};
+    engine_helper::ra_tri_buffs<tri_ref> buffs{&s_buff, &z_buff};
     std::vector<std::thread> threads;
     threads.reserve(NUM_THREADS);
     const int t_height = (width + NUM_THREADS - 1) / NUM_THREADS;
@@ -44,7 +45,7 @@ void engine::fill_z_s(const projector &projector,
                         raw_tri{v_buff.get(tri.point1), v_buff.get(tri.point2),
                                 v_buff.get(tri.point3)};
                     raw_tri p_tri = engine_helper::proj_tri(
-                        new_tri, cam_u, cam_v, cam_w, cam_o);
+                        new_tri, cam_u, cam_v, cam_w, cam_o, f_len);
                     bound_box<int> p_b_box =
                         engine_helper::create_box(p_tri.p1, p_tri.p2, p_tri.p3,
                                                   a_ratio, length_p, width_p);
@@ -76,6 +77,7 @@ void engine::color_buffs() {
     Eigen::Vector3d cam_u = camera.get_u();
     Eigen::Vector3d cam_v = camera.get_v();
     Eigen::Vector3d cam_w = camera.get_w();
+    const double cam_focal_len = camera.get_f_len();
     const int length_p = scene.get_img_length();
     const int width_p = scene.get_img_height();
     const int sqrt_samples = scene.get_sqrt_samples();
@@ -108,8 +110,8 @@ void engine::color_buffs() {
             const Eigen::Vector3d n3 = mesh->find_normal(p3);
             const double shine = mesh->mat->shine;
             raw_tri new_tri = raw_tri{p1, p2, p3};
-            raw_tri p_tri =
-                engine_helper::proj_tri(new_tri, cam_u, cam_v, cam_w, cam_o);
+            raw_tri p_tri = engine_helper::proj_tri(
+                new_tri, cam_u, cam_v, cam_w, cam_o, cam_focal_len);
             bound_box<int> p_b_box = engine_helper::create_box(
                 p_tri.p1, p_tri.p2, p_tri.p3, a_ratio, length_p, width_p);
             const int left = p_b_box.min_x * sqrt_samples;
@@ -117,15 +119,15 @@ void engine::color_buffs() {
             const int top = p_b_box.min_y * sqrt_samples;
             const int bot = p_b_box.max_y * sqrt_samples;
 
-            for (int i = left; i < right; ++i) {
-                double world_x = i * s_pix_to_world_x - a_ratio;
-                for (int j = top; j < bot; ++j) {
+            for (int j = top; j < bot; ++j) {
+                double world_y = j * s_pix_to_world_y - 1;
+                for (int i = left; i < right; ++i) {
                     tri_ref seen_tri = cam_s_buff.get(i, j);
                     if (seen_tri.mesh_id != mesh_id ||
                         seen_tri.tri_index != tri_index) {
                         continue;
                     }
-                    double world_y = j * s_pix_to_world_y - 1;
+                    double world_x = i * s_pix_to_world_x - a_ratio;
                     Eigen::Vector3d test{world_x, world_y, 0};
                     Eigen::Vector3d bary = engine_helper::get_bary(
                         p_tri.p1, p_tri.p2, p_tri.p3, test);
@@ -149,9 +151,11 @@ void engine::color_buffs() {
                         const Eigen::Vector3d light_u = c_light->get_u();
                         const Eigen::Vector3d light_v = c_light->get_v();
                         const Eigen::Vector3d light_w = c_light->get_w();
+                        const double light_f_len = c_light->get_f_len();
                         Eigen::Vector3d proj_point =
-                            engine_helper::project_point(
-                                world_pos, light_u, light_v, light_w, light_o);
+                            engine_helper::project_point(world_pos, light_u,
+                                                         light_v, light_w,
+                                                         light_o, light_f_len);
                         double x = (proj_point[0] + a_ratio) * world_x_to_s_pix;
                         double y = (proj_point[1] + 1.0) * world_y_to_s_pix;
                         int s_pixel_x = static_cast<int>(std::floor(x));
@@ -193,4 +197,47 @@ void engine::color_buffs() {
     }
 };
 
-void engine::render() {}
+void engine::render() {
+    color_buffer &color_buff = scene.col_buffer;
+    image_buffer &img = scene.img;
+    const int img_length = scene.get_img_length();
+    const int img_height = scene.get_img_height();
+    const int sqrt_samples = scene.get_sqrt_samples();
+    const int samples = sqrt_samples * sqrt_samples;
+    const int inv_samples = 1 / samples;
+    z_buffer &z_buffer_cam = scene.z_buffer_cam;
+    seen_buffer &s_buffer_cam = scene.s_buffer_cam;
+    std::vector<std::shared_ptr<mesh>> &meshes = scene.meshes;
+    vertex_buffer &v_buff = scene.v_buffer;
+    std::vector<z_buffer> &z_buffer_lights = scene.z_buffer_lights;
+    std::vector<seen_buffer> &s_buffer_lights = scene.s_buffer_lights;
+    std::vector<std::shared_ptr<light>> &lights = scene.lights;
+    fill_z_s(camera, meshes, v_buff, z_buffer_cam, s_buffer_cam);
+    for (size_t i = 0; i < z_buffer_lights.size(); ++i) {
+        fill_z_s(*lights[i], meshes, v_buff, z_buffer_lights[i],
+                 s_buffer_lights[i]);
+    }
+
+    color_buffs();
+
+    std::vector<Eigen::Vector3d> run_tot(img_length);
+    int pixel_y = 0;
+    for (int j = 0; j < img_height * sqrt_samples; ++j) {
+        int pixel_x = 0;
+        for (int i = 0; i < img_length * sqrt_samples; ++i) {
+            run_tot[pixel_x] += color_buff.get(i, j).val;
+            if (i % sqrt_samples == 0) {
+                pixel_x++;
+            }
+        }
+        if (j % sqrt_samples == 0) {
+            for (size_t index = 0; index < run_tot.size(); ++index) {
+                Eigen::Vector3d avg_col =
+                    (run_tot[index] * inv_samples).cwiseMin(1.0).cwiseMax(0.0);
+                img.set_color(pixel_x, pixel_y, avg_col);
+            }
+            std::fill(run_tot.begin(), run_tot.end(), Eigen::Vector3d{});
+        }
+        pixel_y++;
+    }
+}

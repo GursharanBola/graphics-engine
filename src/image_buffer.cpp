@@ -19,33 +19,24 @@ int image_buffer::draw_png(std::string filename, int width, int height,
 }
 
 Eigen::Vector3d image_buffer::get_color(const int i, const int j) const {
-    if (i < 0 || i >= get_width() || j < 0 || j >= get_length()) {
+    if (i < 0 || i >= (get_length() / 3) || j < 0 || j >= get_width()) {
         return Eigen::Vector3d(0, 0, 0);
     }
-
-    double r = get(j, (3 * i) + 0);
-    double g = get(j, (3 * i) + 1);
-    double b = get(j, (3 * i) + 2);
-
+    double r = get(i * 3 + 0, j);
+    double g = get(i * 3 + 1, j);
+    double b = get(i * 3 + 2, j);
     return Eigen::Vector3d(r / 255.0, g / 255.0, b / 255.0);
 }
 
 bool image_buffer::set_color(const int i, const int j, Eigen::Vector3d color) {
-    if (i < 0 || i >= get_width() || j < 0 || j >= get_length()) {
+    if (i < 0 || i >= (get_length() / 3) || j < 0 || j >= get_width()) {
         return false; // We failed
     }
-
-    double r = color(0);
-    double g = color(1);
-    double b = color(2);
-
-    r = clamp(r, 0.0, 1.0);
-    g = clamp(g, 0.0, 1.0);
-    b = clamp(b, 0.0, 1.0);
-
-    set(i, j, static_cast<int>(255.999 * r));
-    set(i + 1, j, static_cast<int>(255.999 * g));
-    set(i + 1, j, static_cast<int>(255.999 * b));
-
+    double r = std::clamp(color(0), 0.0, 1.0);
+    double g = std::clamp(color(1), 0.0, 1.0);
+    double b = std::clamp(color(2), 0.0, 1.0);
+    set(i * 3 + 0, j, static_cast<int>(255.999 * r));
+    set(i * 3 + 1, j, static_cast<int>(255.999 * g));
+    set(i * 3 + 2, j, static_cast<int>(255.999 * b));
     return true;
 }
