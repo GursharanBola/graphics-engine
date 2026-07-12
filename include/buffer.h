@@ -43,6 +43,8 @@ class color {
 template <typename T> class buffer {
   public:
     virtual ~buffer() = default;
+    buffer(buffer &&) noexcept = default;
+    buffer &operator=(buffer &&) noexcept = default;
     T get(const int i, const int j) const {
         return data[j * (length * sqrt_samples) + i];
     }

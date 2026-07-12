@@ -4,13 +4,12 @@
 
 void sphere::build(vertex_buffer &v_buffer) {
     int i_index = v_buffer.size();
-    int raius = get_radius();
     Eigen::Vector3d center = get_center();
     Eigen::Vector3d start_p(0, radius, 0);
     double delta_phi = EIGEN_PI / num_samples;
     double delta_theta = (2 * EIGEN_PI) / num_samples;
     v_buffer.add(start_p + center);
-    for (int i = 1; i < num_samples - 1; i++) {
+    for (int i = 1; i < num_samples; i++) {
         double c_phi = i * delta_phi;
         for (int j = 0; j < num_samples; j++) {
             double c_theta = j * delta_theta;
@@ -64,6 +63,6 @@ void sphere::build(vertex_buffer &v_buffer) {
     }
 }
 
-Eigen::Vector3d sphere::find_normal(const Eigen::Vector3d point) const {
+Eigen::Vector3d sphere::find_normal(const Eigen::Vector3d &point) const {
     return (point - center).normalized();
 }

@@ -75,7 +75,7 @@ Eigen::Vector3d engine_helper::get_bary(const Eigen::Vector3d &p1,
                                         const Eigen::Vector3d &p3,
                                         const Eigen::Vector3d &test_pt) {
     double area = edge_func(p1, p2, p3);
-    if (area == 1e-9) {
+    if (std::abs(area) < 1e-9) {
         return {-1.0, -1.0, -1.0};
     }
     double w1 = edge_func(p2, p3, test_pt);
@@ -212,9 +212,9 @@ void engine_helper::rast_tri(const bound_box<int> &b_box,
         return;
     }
     for (int l = top; l < bot; ++l) {
-        double world_y = l * s_pix_to_world_y - 1;
+        double world_y = 1.0 - (l + 0.5) + s_pix_to_world_y;
         for (int k = left; k < right; ++k) {
-            double world_x = k * s_pix_to_world_x - a_ratio;
+            double world_x = (k + 0.5) * s_pix_to_world_x - a_ratio;
             Eigen::Vector3d test{world_x, world_y, 0};
             Eigen::Vector3d bary = get_bary(p_tri.p1, p_tri.p2, p_tri.p3, test);
             if (bary[0] < 0.0 || bary[1] < 0.0 || bary[2] < 0.0) {

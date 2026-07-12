@@ -11,11 +11,11 @@ void quad::build(vertex_buffer &v_buffer) {
     v_buffer.add(v2);
     v_buffer.add(v3);
     v_buffer.add(v4);
-    triangle t1{i_index, i_index + 3, i_index + 1};
-    triangle t2{i_index, i_index + 2, i_index + 3};
+    triangle t1{i_index, i_index + 1, i_index + 3};
+    triangle t2{i_index, i_index + 3, i_index + 2};
     list_of_triangles.push_back(t1);
     list_of_triangles.push_back(t2);
 }
-Eigen::Vector3d quad::find_normal(const Eigen::Vector3d point) const {
+Eigen::Vector3d quad::find_normal(const Eigen::Vector3d &point) const {
     return u.cross(v).normalized();
 }

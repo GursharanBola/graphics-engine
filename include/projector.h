@@ -7,6 +7,7 @@
 // projector acts a utility for lights and cameras
 class projector {
   public:
+    virtual ~projector() = default;
     projector(const Eigen::Vector3d &origin, const Eigen::Vector3d &cam_u,
               const Eigen::Vector3d &cam_v, const Eigen::Vector3d &cam_w,
               const double focal_len)
@@ -21,10 +22,10 @@ class projector {
     double get_f_len() const { return focal_len; }
 
   private:
+    Eigen::Vector3d origin;
     Eigen::Vector3d cam_u;
     Eigen::Vector3d cam_v;
     Eigen::Vector3d cam_w;
-    Eigen::Vector3d origin;
     double focal_len;
 };
 
