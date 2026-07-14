@@ -1,12 +1,16 @@
 #include "engine.h"
+#include "Eigen/src/Core/Matrix.h"
 #include "buffer.h"
 #include "consts.h"
 #include "engine_helper.h"
 #include "projector.h"
+#include <algorithm>
 #include <memory>
 #include <stdexcept>
 #include <thread>
 #include <vector>
+
+// TODO: double check the cam_w convention, which is cam_w faces backward
 
 void engine::fill_z_s(const projector &projector,
                       const std::vector<std::shared_ptr<mesh>> &meshes,
@@ -88,7 +92,8 @@ void engine::color_buffs() {
     const double s_pix_to_world_y = 2.0 / width;
     const double world_y_to_s_pix = width / 2.0;
     const double world_x_to_s_pix = length / (2.0 * a_ratio);
-    const double ambient = scene.ambient_light;
+    const color &ambient = scene.ambient_color;
+    const double inv_pi = 1.0 / EIGEN_PI;
     vertex_buffer &v_buff = scene.v_buffer;
     seen_buffer &cam_s_buff = scene.s_buffer_cam;
     color_buffer &col_buff = scene.col_buffer;
@@ -96,10 +101,14 @@ void engine::color_buffs() {
     int mesh_id = 0;
 
     for (auto &mesh : scene.meshes) {
-        const double k_a = mesh->mat->k_a();
-        const double k_d = mesh->mat->k_d();
-        const double k_s = mesh->mat->k_s();
+        const double metalic = mesh->mat->metalic;
+        const double shine = mesh->mat->shine;
+        const Eigen::Vector3d reflectance = mesh->mat->reflectance;
         const color base_color = mesh->get_color();
+        Eigen::Vector3d metal_color = base_color.val * (1 - metalic);
+        Eigen::Vector3d ambient_term = metal_color.cwiseProduct(ambient.val);
+        Eigen::Vector3d norm_metal_color = metal_color * inv_pi;
+
         int tri_index = 0;
         for (const triangle &tri : mesh->list_of_triangles) {
             const Eigen::Vector3d p1 = v_buff.get(tri.point1);
@@ -108,7 +117,6 @@ void engine::color_buffs() {
             const Eigen::Vector3d n1 = mesh->find_normal(p1);
             const Eigen::Vector3d n2 = mesh->find_normal(p2);
             const Eigen::Vector3d n3 = mesh->find_normal(p3);
-            const double shine = mesh->mat->shine;
             raw_tri new_tri = raw_tri{p1, p2, p3};
             raw_tri p_tri = engine_helper::proj_tri(
                 new_tri, cam_u, cam_v, cam_w, cam_o, cam_focal_len);
@@ -138,19 +146,17 @@ void engine::color_buffs() {
                         alpha * n1 + beta * n2 + gamma * n3;
                     Eigen::Vector3d world_pos =
                         alpha * p1 + beta * p2 + gamma * p3;
-                    Eigen::Vector3d ambient_comp =
-                        k_a * ambient * base_color.val;
-                    Eigen::Vector3d total_color =
-                        scene.l_color.val + ambient_comp;
+                    Eigen::Vector3d view = (cam_o - world_pos).normalized();
+                    Eigen::Vector3d total_color = ambient_term;
 
                     for (size_t l_index = 0; l_index < scene.lights.size();
                          ++l_index) {
                         auto &c_light = scene.lights[l_index];
                         seen_buffer &curr_l_s_buff = l_s_buffs[l_index];
-                        const Eigen::Vector3d light_o = c_light->get_o();
-                        const Eigen::Vector3d light_u = c_light->get_u();
-                        const Eigen::Vector3d light_v = c_light->get_v();
-                        const Eigen::Vector3d light_w = c_light->get_w();
+                        const Eigen::Vector3d &light_o = c_light->get_o();
+                        const Eigen::Vector3d &light_u = c_light->get_u();
+                        const Eigen::Vector3d &light_v = c_light->get_v();
+                        const Eigen::Vector3d &light_w = c_light->get_w();
                         const double light_f_len = c_light->get_f_len();
                         Eigen::Vector3d proj_point =
                             engine_helper::project_point(world_pos, light_u,
@@ -169,22 +175,43 @@ void engine::color_buffs() {
                             l_tri.tri_index != tri_index) {
                             continue;
                         }
-                        const double I_d = c_light->get_I_d();
-                        const double I_s = c_light->get_I_s();
-                        const Eigen::Vector3d &l_cam_w = c_light->get_w();
+
                         const color &l_color = c_light->get_color();
-                        Eigen::Vector3d reflect =
-                            2 * inter_norm.dot(l_cam_w) * inter_norm - l_cam_w;
-                        Eigen::Vector3d v = (cam_o - world_pos).normalized();
-                        double dot_w_l = std::max(inter_norm.dot(l_cam_w), 0.0);
-                        double dot_w_v =
-                            std::pow(std::max(reflect.dot(v), 0.0), shine);
-                        Eigen::Vector3d diffuse_comp =
-                            k_d * I_d * dot_w_l *
-                            (l_color.val).cwiseProduct(base_color.val);
-                        Eigen::Vector3d specular_comp =
-                            k_s * I_s * dot_w_v * l_color.val;
-                        total_color += diffuse_comp + specular_comp;
+                        Eigen::Vector3d half = (view - light_w).normalized();
+                        double n_dot_h = std::max(0.0, inter_norm.dot(half));
+                        double n_dot_v = std::max(0.0, inter_norm.dot(view));
+                        double n_dot_l =
+                            std::max(0.0, inter_norm.dot(-light_w));
+
+                        if (n_dot_l <= 0.0) {
+                            continue;
+                        }
+
+                        double v_dot_h = std::max(0.0, view.dot(half));
+                        double distro = (shine + 2.0) * 0.5 * inv_pi *
+                                        std::pow(n_dot_h, shine);
+
+                        double transmission = 1.0 - v_dot_h;
+                        double sq_trans = transmission * transmission;
+                        double pent_trans = sq_trans * sq_trans * transmission;
+                        Eigen::Vector3d frensel =
+                            reflectance.array() +
+                            (1.0 - reflectance.array()) * pent_trans;
+
+                        double facet =
+                            2.0 * n_dot_h / std::max(0.0001, v_dot_h);
+                        double dir_1 = facet * n_dot_v;
+                        // light_w is backwards by convention
+                        double dir_2 = facet * n_dot_l;
+                        double G = std::min<double>({1, dir_1, dir_2});
+                        Eigen::Vector3d spec_brdf =
+                            (distro * frensel * G * 0.25) /
+                            std::max(0.0001, n_dot_v);
+                        Eigen::Vector3d diff_brdf = norm_metal_color * n_dot_l;
+                        Eigen::Vector3d added_light =
+                            (diff_brdf + spec_brdf).cwiseProduct(l_color.val);
+
+                        total_color += added_light;
                     }
                     col_buff.set(
                         i, j,
@@ -226,18 +253,20 @@ void engine::render() {
         int pixel_x = 0;
         for (int i = 0; i < img_length * sqrt_samples; ++i) {
             run_tot[pixel_x] += color_buff.get(i, j).val;
-            if (i % sqrt_samples == 0) {
+            if (i % (sqrt_samples - 1) == 0) {
                 pixel_x++;
             }
         }
-        if (j % sqrt_samples == 0) {
+        if (j % (sqrt_samples - 1) == 0) {
             for (size_t index = 0; index < run_tot.size(); ++index) {
                 Eigen::Vector3d avg_col =
                     (run_tot[index] * inv_samples).cwiseMin(1.0).cwiseMax(0.0);
                 img.set_color(pixel_x, pixel_y, avg_col);
             }
             std::fill(run_tot.begin(), run_tot.end(), Eigen::Vector3d{});
+            pixel_y++;
         }
-        pixel_y++;
     }
 }
+
+void engine::add_cube() {}

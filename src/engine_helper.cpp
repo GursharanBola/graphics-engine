@@ -1,9 +1,6 @@
 #include "engine_helper.h"
 #include "consts.h"
 
-// TODO: make sure that this works for sure also make sure that it works as seen
-// in the pipe line in engine.cpp
-
 Eigen::Vector3d engine_helper::project_point(const Eigen::Vector3d &p1,
                                              const Eigen::Vector3d &cam_u,
                                              const Eigen::Vector3d &cam_v,

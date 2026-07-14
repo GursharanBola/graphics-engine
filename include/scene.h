@@ -24,14 +24,14 @@ class scene {
   public:
     scene(const int img_length, const int img_height, const int num_channels,
           const int sqrt_samples, const color l_color,
-          const double ambient_light)
+          const color &ambient_color)
         : img_length(img_length), img_height(img_height),
           num_channels(num_channels), sqrt_samples(sqrt_samples),
           img(img_length, img_height, num_channels),
           col_buffer(img_length, img_height, sqrt_samples),
           z_buffer_cam(img_length, img_height, sqrt_samples),
           s_buffer_cam(img_length, img_height, sqrt_samples),
-          ambient_light(ambient_light), l_color(l_color) {};
+          ambient_color(ambient_color) {};
 
     void add_sphere(const Eigen::Vector3d &center, const double radius,
                     const color &mesh_color,
@@ -59,7 +59,7 @@ class scene {
                    const color &light_color, const double I_d, const double I_s,
                    const double focal_dist) {
         std::shared_ptr<light> new_light = std::make_shared<light>(
-            origin, cam_u, cam_v, cam_w, light_color, I_d, I_s, focal_dist);
+            origin, cam_u, cam_v, cam_w, light_color, focal_dist);
 
         z_buffer_lights.emplace_back(img_length, img_height, sqrt_samples);
         s_buffer_lights.emplace_back(img_length, img_height, sqrt_samples);
@@ -83,8 +83,7 @@ class scene {
         v_buffer.clear();
         z_buffer_lights.clear();
         s_buffer_lights.clear();
-        l_color = color{0, 0, 0};
-        ambient_light = 0.0;
+        ambient_color = color{0, 0, 0};
     }
 
     int get_img_length() const { return img_length; }
@@ -102,8 +101,7 @@ class scene {
     std::vector<seen_buffer> s_buffer_lights;
     std::vector<std::shared_ptr<mesh>> meshes;
     std::vector<std::shared_ptr<light>> lights;
-    double ambient_light;
-    color l_color;
+    color ambient_color;
 };
 
 #endif
