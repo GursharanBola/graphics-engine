@@ -10,10 +10,9 @@
 #include <thread>
 #include <vector>
 
-// TODO: double check the cam_w convention, which is cam_w faces backward
-
+// TODO: ensure valid backface culling and projection using -cam_w
 void engine::fill_z_s(const projector &projector,
-                      const std::vector<std::shared_ptr<mesh>> &meshes,
+                      const std::vector<std::unique_ptr<mesh>> &meshes,
                       const vertex_buffer &v_buff, z_buffer &z_buff,
                       seen_buffer &s_buff) const {
     const Eigen::Vector3d &cam_u = projector.get_u();
@@ -23,18 +22,60 @@ void engine::fill_z_s(const projector &projector,
     const double f_len = projector.get_f_len();
     const int length = z_buff.get_length();
     const int width = z_buff.get_width();
-    const int length_p = z_buff.get_width_p();
+    const int length_p = z_buff.get_length_p();
     const int width_p = z_buff.get_width_p();
     const int sqrt_samples = z_buff.get_sqrt_samples();
     const double a_ratio = static_cast<double>(length) / width;
+    const int num_meshes = meshes.size();
     if (length != s_buff.get_length() || width != s_buff.get_width() ||
         s_buff.get_sqrt_samples() != sqrt_samples) {
         throw std::runtime_error(
             "s_buff must have same width, length, and sqrt_samples");
     }
+    std::vector<int> sizes{};
+    for (auto &mesh : meshes) {
+        sizes.emplace_back(mesh->list_of_triangles.size());
+    }
+    e_cache_map<cached_tri> map(sizes);
     constexpr int NUM_THREADS = consts::NUM_THREADS;
-    engine_helper::ra_tri_buffs<tri_ref> buffs{&s_buff, &z_buff};
+    int stride = std::max(1, num_meshes / NUM_THREADS);
     std::vector<std::thread> threads;
+    for (int mesh_start = 0; mesh_start < num_meshes; mesh_start += stride) {
+        int mesh_end = mesh_start + stride;
+        mesh_end = mesh_end > num_meshes ? num_meshes : mesh_end;
+        threads.emplace_back([&, mesh_start, mesh_end]() {
+            for (int mesh_id = mesh_start; mesh_id < mesh_end; ++mesh_id) {
+                const std::unique_ptr<mesh> &c_mesh = meshes[mesh_id];
+                const std::vector<triangle> &list_of_tri =
+                    c_mesh->list_of_triangles;
+                const int num_tris = c_mesh->list_of_triangles.size();
+                for (int tri_index = 0; tri_index < num_tris; ++tri_index) {
+                    const triangle &tri = list_of_tri[tri_index];
+                    raw_tri new_tri =
+                        raw_tri{v_buff.get(tri.point1), v_buff.get(tri.point2),
+                                v_buff.get(tri.point3)};
+                    raw_tri p_tri = engine_helper::proj_tri(
+                        new_tri, cam_u, cam_v, cam_w, cam_o, f_len);
+                    if (engine_helper::edge_func(p_tri.p1, p_tri.p2, p_tri.p3) <
+                        0) {
+                        continue; // backface cull
+                    }
+                    bound_box<int> p_b_box =
+                        engine_helper::create_box(p_tri.p1, p_tri.p2, p_tri.p3,
+                                                  a_ratio, length_p, width_p);
+                    map.add_tri(mesh_id, cached_tri{tri_index, p_tri, p_b_box});
+                }
+            }
+        });
+    }
+    for (auto &t : threads) {
+        t.join();
+    }
+    threads.clear();
+    std::vector<int> &initial = map.initial;
+    std::vector<int> &offsets = map.offsets;
+    std::vector<cached_tri> &seen_tris = map.data;
+    engine_helper::ra_tri_buffs<tri_ref> buffs{&s_buff, &z_buff};
     threads.reserve(NUM_THREADS);
     const int t_height = (width + NUM_THREADS - 1) / NUM_THREADS;
     for (int top = 0; top < width; top += t_height) {
@@ -42,31 +83,27 @@ void engine::fill_z_s(const projector &projector,
         int bot = next_row > width_p ? width_p : next_row;
         bound_box thread_box = bound_box<int>{0, length_p, top, bot};
         threads.emplace_back([&, thread_box]() {
-            for (const auto &mesh : meshes) {
-                int tri_index = 0;
-                for (const triangle &tri : mesh->list_of_triangles) {
-                    raw_tri new_tri =
-                        raw_tri{v_buff.get(tri.point1), v_buff.get(tri.point2),
-                                v_buff.get(tri.point3)};
-                    raw_tri p_tri = engine_helper::proj_tri(
-                        new_tri, cam_u, cam_v, cam_w, cam_o, f_len);
-                    bound_box<int> p_b_box =
-                        engine_helper::create_box(p_tri.p1, p_tri.p2, p_tri.p3,
-                                                  a_ratio, length_p, width_p);
-                    int left = std::max(p_b_box.min_x, thread_box.min_x);
-                    int right = std::min(p_b_box.max_x, thread_box.max_x);
-                    int top = std::max(p_b_box.min_y, thread_box.min_y);
-                    int bot = std::min(p_b_box.max_y, thread_box.max_y);
-                    if (left > right || bot > top) {
+            for (int mesh_id = 0; mesh_id < num_meshes; ++mesh_id) {
+                const int start = initial[mesh_id];
+                const int end = offsets[mesh_id];
+                for (int ith_tri = start; ith_tri < end; ++ith_tri) {
+                    const int tri_index = seen_tris[ith_tri].tri_index;
+                    const raw_tri &p_tri = seen_tris[ith_tri].p_tri;
+                    const bound_box<int> &p_b_box = seen_tris[ith_tri].b_box;
+                    int b_left = std::max(p_b_box.min_x, thread_box.min_x);
+                    int b_right = std::min(p_b_box.max_x, thread_box.max_x);
+                    int b_top = std::max(p_b_box.min_y, thread_box.min_y);
+                    int b_bot = std::min(p_b_box.max_y, thread_box.max_y);
+                    if (b_left > b_right || b_top > b_bot) {
                         continue;
                     }
-                    bound_box t_b_box = bound_box<int>{left, right, top, bot};
-                    tri_ref current_val = tri_ref{mesh->get_id(), tri_index};
+                    bound_box t_b_box =
+                        bound_box<int>{b_left, b_right, b_top, b_bot};
+                    tri_ref current_val = tri_ref{mesh_id, tri_index};
                     engine_helper::ra_tri_args<tri_ref> args{
                         length, width, p_tri, current_val};
                     engine_helper::with_buff(engine_helper::rast_tri_fn{},
                                              t_b_box, buffs, args);
-                    tri_index++;
                 }
             }
         });
@@ -105,17 +142,17 @@ void engine::color_buffs() {
     for (auto &mesh : meshes) {
         sizes.emplace_back(mesh->list_of_triangles.size());
     }
-    e_cache_map map(sizes);
+    e_cache_map<int> map(sizes);
     for (int j = 0; j < width; ++j) {
         for (int i = 0; i < length; ++i) {
             tri_ref new_tri = cam_s_buff.get(i, j);
-            map.add_tri(new_tri);
+            map.add_tri(new_tri.mesh_id, new_tri.tri_index);
         }
     }
     map.post_process();
     std::vector<int> &initial = map.initial;
     std::vector<int> &offsets = map.offsets;
-    std::vector<int> &seen_tris = map.seen_tris;
+    std::vector<int> &seen_tris = map.data;
     for (int mesh_id = 0; mesh_id < num_meshes; ++mesh_id) {
         const auto &mesh = meshes[mesh_id];
         const auto &list_of_tris = mesh->list_of_triangles;
@@ -245,8 +282,8 @@ void engine::render() {
     image_buffer &img = scene.img;
     z_buffer &z_buffer_cam = scene.z_buffer_cam;
     seen_buffer &s_buffer_cam = scene.s_buffer_cam;
-    std::vector<std::unique_ptr<mesh>> &meshes = scene.meshes;
     vertex_buffer &v_buff = scene.v_buffer;
+    std::vector<std::unique_ptr<mesh>> &meshes = scene.meshes;
     std::vector<z_buffer> &z_buffer_lights = scene.z_buffer_lights;
     std::vector<seen_buffer> &s_buffer_lights = scene.s_buffer_lights;
     std::vector<std::unique_ptr<light>> &lights = scene.lights;

@@ -5,6 +5,8 @@
 #include <Eigen/Dense>
 
 // projector acts a utility for lights and cameras
+
+// focal_len = 1 / tan (t * (pi/2)) t is a normalized value between 0 and 1.
 class projector {
   public:
     virtual ~projector() = default;

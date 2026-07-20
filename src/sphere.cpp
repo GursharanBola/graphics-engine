@@ -4,7 +4,7 @@
 
 void sphere::build(vertex_buffer &v_buffer) {
     int i_index = v_buffer.size();
-    Eigen::Vector3d center = get_center();
+    Eigen::Vector3d center = get_origin();
     Eigen::Vector3d start_p(0, radius, 0);
     double delta_phi = EIGEN_PI / num_samples;
     double delta_theta = (2 * EIGEN_PI) / num_samples;

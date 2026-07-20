@@ -1,5 +1,51 @@
 #include "buffer.h"
 #include <memory>
+#include <vector>
+
+// efficient cache map, astores tri_refs densely to avoid cache misses
+// also optimizes iteration order, using post_process()
+
+// counts_in is the max number of triangles in each mesh
+
+struct cached_tri {
+    int tri_index;
+    raw_tri p_tri;
+    bound_box<int> b_box;
+    bool operator<(const cached_tri &other) const {
+        return tri_index < other.tri_index;
+    }
+};
+
+template <typename T> struct e_cache_map {
+    std::vector<T> data;
+    std::vector<int> initial;
+    std::vector<int> offsets;
+    e_cache_map(const std::vector<int> &counts_in) {
+        int num_meshes = counts_in.size();
+        offsets.resize(num_meshes);
+        initial.resize(num_meshes);
+        int current_total = 0;
+        for (int i = 0; i < num_meshes; ++i) {
+            initial[i] = current_total;
+            offsets[i] = current_total;
+            current_total += counts_in[i];
+        }
+        data.resize(current_total);
+    }
+    void add_tri(const int m_id, const T &item) {
+        data[offsets[m_id]] = item;
+        offsets[m_id]++;
+    }
+    void post_process() {
+        int num_meshes = initial.size();
+        for (int m_id = 0; m_id < num_meshes; ++m_id) {
+            int start = initial[m_id];
+            int end = offsets[m_id];
+            std::sort(data.begin() + start, data.begin() + end);
+        }
+    }
+    void clear() { offsets = initial; }
+};
 
 // project a point and correct for depth
 namespace engine_helper {
@@ -26,7 +72,15 @@ bound_box<int> create_box(const Eigen::Vector3d &p1, const Eigen::Vector3d &p2,
 double edge_func(const Eigen::Vector3d &a, const Eigen::Vector3d &b,
                  const Eigen::Vector3d &p);
 
-// works regardless of winding order
+// get bary fits into the pipeline in the following way:
+// triangle objects store p1.v_id, p2.v_id, p_3.v_id in ccw order the
+// program then projects the triangle onto the image plane in the following
+// way (p1.v_id, p2.v_id, p_3.v_id)
+//     V        V         V
+// (proj_p1, proj_p2, proj_p3)
+//
+// get_bary() expects the pointsp1, p2 and p3 to be CCW, if the point is CW,
+// then the area is negative and will return Eigen::Vector3d{-1,-1,-1}
 Eigen::Vector3d get_bary(const Eigen::Vector3d &p1, const Eigen::Vector3d &p2,
                          const Eigen::Vector3d &p3,
                          const Eigen::Vector3d &test_pt);
@@ -40,8 +94,6 @@ void pull(buffer<T> &src, buffer<T> &dest, const int offset_x,
 template <typename T>
 void push(buffer<T> &src, buffer<T> &dest, const int offset_x,
           const int offset_y);
-
-// NOTE: HERE
 
 // single thread job with tiles given b_box
 template <typename Func, typename BuffType, typename ArgType>

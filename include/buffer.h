@@ -4,11 +4,6 @@
 #include <Eigen/Dense>
 #include <vector>
 
-struct point {
-    int x;
-    int y;
-};
-
 struct raw_tri {
     Eigen::Vector3d p1;
     Eigen::Vector3d p2;

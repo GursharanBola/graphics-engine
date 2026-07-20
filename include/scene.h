@@ -2,6 +2,7 @@
 #define SCENE_H
 
 #include "buffer.h"
+#include "consts.h"
 #include "material.h"
 #include "mesh.h"
 #include "projector.h"
@@ -12,6 +13,13 @@
  * that since the program renders one color at a time and one mesh at a time
  * only one colorbuffer is needed
  */
+
+/* TODO: Design Changes --> Cube Mapped Reflections (CMR)
+**
+** when taking in a mesh, check if the object is a metal and then determine
+** the box, and then use conts::CUBE_MAP_PIXEL_DENSITY to determine the side len
+** of the cube.
+*/
 
 class scene {
   private:
@@ -34,36 +42,40 @@ class scene {
           ambient_color(ambient_color) {};
 
     void add_sphere(const Eigen::Vector3d &center, const double radius,
-                    const color &mesh_color,
-                    const std::shared_ptr<material> &mat,
+                    const color &mesh_color, std::unique_ptr<material> mat,
                     const int num_samples) {
-        std::shared_ptr<mesh> new_sphere = std::make_shared<sphere>(
-            meshes.size(), center, radius, mesh_color, mat, num_samples);
-
-        new_sphere->build(v_buffer);
-        meshes.push_back(new_sphere);
+        if (mat->is_metal) {
+            mat->metal_data = cube_maps.size();
+            const int side_len = 2 * radius * consts::CUBE_MAP_PIXEL_DENSITY;
+            for (int i = 0; i < 6; ++i) {
+                cube_maps.emplace_back(image_buffer{side_len, side_len, 1});
+            }
+        }
+        meshes.emplace_back(
+            std::make_unique<sphere>(meshes.size(), center, radius, mesh_color,
+                                     std::move(mat), num_samples, v_buffer));
     }
 
     void add_quad(const Eigen::Vector3d &origin, const Eigen::Vector3d &u,
                   const Eigen::Vector3d &v, const color &mesh_color,
-                  const std::shared_ptr<material> &mat) {
-        std::shared_ptr<mesh> new_quad = std::make_shared<quad>(
-            meshes.size(), origin, u, v, mesh_color, mat);
-
-        new_quad->build(v_buffer);
-        meshes.push_back(new_quad);
+                  std::unique_ptr<material> mat) {
+        if (mat->is_metal) {
+            mat->metal_data = cube_maps.size();
+            const int side_len =
+                std::max(u.norm(), v.norm()) * consts::CUBE_MAP_PIXEL_DENSITY;
+            cube_maps.emplace_back(image_buffer{side_len, side_len, 1});
+        }
+        meshes.emplace_back(std::make_unique<quad>(
+            meshes.size(), origin, u, v, mesh_color, std::move(mat), v_buffer));
     }
 
     void add_light(const Eigen::Vector3d &origin, const Eigen::Vector3d &cam_u,
                    const Eigen::Vector3d &cam_v, const Eigen::Vector3d &cam_w,
-                   const color &light_color, const double I_d, const double I_s,
-                   const double focal_dist) {
-        std::shared_ptr<light> new_light = std::make_shared<light>(
-            origin, cam_u, cam_v, cam_w, light_color, focal_dist);
-
+                   const color &light_color, const double focal_len) {
         z_buffer_lights.emplace_back(img_length, img_height, sqrt_samples);
         s_buffer_lights.emplace_back(img_length, img_height, sqrt_samples);
-        lights.push_back(new_light);
+        lights.emplace_back(std::make_unique<light>(origin, cam_u, cam_v, cam_w,
+                                                    light_color, focal_len));
     }
 
     void add_light_s_buff() {
@@ -99,8 +111,11 @@ class scene {
     seen_buffer s_buffer_cam;
     std::vector<z_buffer> z_buffer_lights;
     std::vector<seen_buffer> s_buffer_lights;
-    std::vector<std::shared_ptr<mesh>> meshes;
-    std::vector<std::shared_ptr<light>> lights;
+    std::vector<z_buffer> cubemaps_z;
+    std::vector<seen_buffer> scratch_s;
+    std::vector<std::unique_ptr<mesh>> meshes;
+    std::vector<std::unique_ptr<light>> lights;
+    std::vector<image_buffer> cube_maps;
     color ambient_color;
 };
 

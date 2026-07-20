@@ -30,35 +30,32 @@ raw_tri engine_helper::proj_tri(const raw_tri &tri,
         project_point(tri.p3, cam_u, cam_v, cam_w, origin, focal_len)};
 }
 
-bound_box<double> engine_helper::w_box(const Eigen::Vector3d &p1,
-                                       const Eigen::Vector3d &p2,
-                                       const Eigen::Vector3d &p3,
-                                       const double aspect_ratio) {
-    double hor_min = std::min({p1[0], p2[0], p3[0]});
-    double ver_min = std::min({p1[1], p2[1], p3[1]});
-    double hor_max = std::max({p1[0], p2[0], p3[0]});
-    double ver_max = std::max({p1[1], p2[1], p3[1]});
-    hor_min = std::clamp(hor_min, -aspect_ratio, aspect_ratio);
-    hor_max = std::clamp(hor_max, -aspect_ratio, aspect_ratio);
-    ver_min = std::clamp(ver_min, -1.0, 1.0);
-    ver_max = std::clamp(ver_max, -1.0, 1.0);
-    return bound_box<double>{hor_min, hor_max, ver_min, ver_max};
-}
-
 bound_box<int>
 engine_helper::create_box(const Eigen::Vector3d &p1, const Eigen::Vector3d &p2,
                           const Eigen::Vector3d &p3, const double aspect_ratio,
                           const int img_length, const int img_width) {
-    bound_box<double> w_bbox = w_box(p1, p2, p3, aspect_ratio);
-    int left =
-        std::floor(0.5 * (w_bbox.min_x / aspect_ratio + 1.0) * img_length);
-    int right =
-        std::ceil(0.5 * (w_bbox.max_x / aspect_ratio + 1.0) * img_length);
-    int y_top = std::floor((1.0 - w_bbox.max_y) * 0.5 * img_width);
-    int y_bottom = std::ceil((1.0 - w_bbox.min_y) * 0.5 * img_width);
+    const double inv_aspect = 1.0 / aspect_ratio;
+    const double half_len = img_length * 0.5;
+    const double half_wid = img_width * 0.5;
+    const double x_scale = half_len * inv_aspect;
+    const double y_scale = -half_wid;
+    const double sx1 = p1[0] * x_scale + half_len;
+    const double sy1 = p1[1] * y_scale + half_wid;
+    const double sx2 = p2[0] * x_scale + half_len;
+    const double sy2 = p2[1] * y_scale + half_wid;
+    const double sx3 = p3[0] * x_scale + half_len;
+    const double sy3 = p3[1] * y_scale + half_wid;
+    const double min_x = std::min(sx1, std::min(sx2, sx3));
+    const double max_x = std::max(sx1, std::max(sx2, sx3));
+    const double min_y = std::min(sy1, std::min(sy2, sy3));
+    const double max_y = std::max(sy1, std::max(sy2, sy3));
+    int left = static_cast<int>(std::floor(min_x));
+    int right = static_cast<int>(std::ceil(max_x));
+    int top = static_cast<int>(std::floor(min_y));
+    int bottom = static_cast<int>(std::ceil(max_y));
     return bound_box<int>{
         std::clamp(left, 0, img_length), std::clamp(right, 0, img_length),
-        std::clamp(y_top, 0, img_width), std::clamp(y_bottom, 0, img_width)};
+        std::clamp(top, 0, img_width), std::clamp(bottom, 0, img_width)};
 }
 
 double engine_helper::edge_func(const Eigen::Vector3d &a,
@@ -72,6 +69,10 @@ Eigen::Vector3d engine_helper::get_bary(const Eigen::Vector3d &p1,
                                         const Eigen::Vector3d &p3,
                                         const Eigen::Vector3d &test_pt) {
     double area = edge_func(p1, p2, p3);
+    // backface cull
+    if (area < 0) {
+        return {-1.0, -1.0, -1.0};
+    }
     if (std::abs(area) < 1e-9) {
         return {-1.0, -1.0, -1.0};
     }
