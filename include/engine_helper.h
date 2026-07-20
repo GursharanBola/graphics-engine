@@ -6,7 +6,6 @@
 // also optimizes iteration order, using post_process()
 
 // counts_in is the max number of triangles in each mesh
-
 struct cached_tri {
     int tri_index;
     raw_tri p_tri;

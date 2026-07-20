@@ -24,6 +24,9 @@ class engine {
     scene &scene;
     camera &camera;
 
+    // calls child to fill all buffers in the scene
+    void fill_all_z_s();
+
     // child used to fill in the depth and visibility buffers
     void fill_z_s(const projector &projector,
                   const std::vector<std::unique_ptr<mesh>> &meshes,

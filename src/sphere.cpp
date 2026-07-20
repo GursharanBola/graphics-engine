@@ -64,5 +64,5 @@ void sphere::build(vertex_buffer &v_buffer) {
 }
 
 Eigen::Vector3d sphere::find_normal(const Eigen::Vector3d &point) const {
-    return (point - center).normalized();
+    return (point - origin).normalized();
 }

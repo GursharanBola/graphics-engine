@@ -280,19 +280,7 @@ void engine::render() {
     const int inv_samples = 1 / samples;
     color_buffer &color_buff = scene.col_buffer;
     image_buffer &img = scene.img;
-    z_buffer &z_buffer_cam = scene.z_buffer_cam;
-    seen_buffer &s_buffer_cam = scene.s_buffer_cam;
-    vertex_buffer &v_buff = scene.v_buffer;
-    std::vector<std::unique_ptr<mesh>> &meshes = scene.meshes;
-    std::vector<z_buffer> &z_buffer_lights = scene.z_buffer_lights;
-    std::vector<seen_buffer> &s_buffer_lights = scene.s_buffer_lights;
-    std::vector<std::unique_ptr<light>> &lights = scene.lights;
-    fill_z_s(camera, meshes, v_buff, z_buffer_cam, s_buffer_cam);
-    int z_buffer_lights_size = z_buffer_lights.size();
-    for (size_t i = 0; i < z_buffer_lights_size; ++i) {
-        fill_z_s(*lights[i], meshes, v_buff, z_buffer_lights[i],
-                 s_buffer_lights[i]);
-    }
+    fill_all_z_s();
     color_buffs();
     // take the average, written this way to be quick
     std::vector<Eigen::Vector3d> run_tot(img_length);
@@ -315,13 +303,30 @@ void engine::render() {
         if (sub_y == sqrt_samples) {
             for (int x = 0; x < run_tot.size(); ++x) {
                 Eigen::Vector3d avg_col =
-                    (run_tot[x] * inv_samples).cwiseMin(1.0).cwiseMax(0.0);
+                    (run_tot[x] * inv_samples).array().min(1.0).max(0.0);
                 img.set_color(x, pixel_y, avg_col);
             }
             std::fill(run_tot.begin(), run_tot.end(), Eigen::Vector3d::Zero());
             pixel_y++;
             sub_y = 0;
         }
+    }
+}
+
+void engine::fill_all_z_s() {
+    z_buffer &z_buffer_cam = scene.z_buffer_cam;
+    seen_buffer &s_buffer_cam = scene.s_buffer_cam;
+    vertex_buffer &v_buff = scene.v_buffer;
+    std::vector<z_buffer> &z_buffer_lights = scene.z_buffer_lights;
+    std::vector<seen_buffer> &s_buffer_lights = scene.s_buffer_lights;
+    std::vector<std::unique_ptr<mesh>> &meshes = scene.meshes;
+    std::vector<std::unique_ptr<light>> &lights = scene.lights;
+
+    fill_z_s(camera, meshes, v_buff, z_buffer_cam, s_buffer_cam);
+    int z_buffer_lights_size = z_buffer_lights.size();
+    for (size_t i = 0; i < z_buffer_lights_size; ++i) {
+        fill_z_s(*lights[i], meshes, v_buff, z_buffer_lights[i],
+                 s_buffer_lights[i]);
     }
 }
 
