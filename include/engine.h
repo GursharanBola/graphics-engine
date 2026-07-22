@@ -2,10 +2,11 @@
 #define ENGINE_H
 
 #include "buffer.h"
+#include "ds.h"
 #include "projector.h"
 #include "scene.h"
-#include <memory>
 #include <vector>
+
 // TODO: add cube mapped reflections and maybe file parsing
 
 /*
@@ -28,9 +29,8 @@ class engine {
     void fill_all_z_s();
 
     // child used to fill in the depth and visibility buffers
-    void fill_z_s(const projector &projector,
-                  const std::vector<std::unique_ptr<mesh>> &meshes,
-                  const vertex_buffer &v_buff, z_buffer &z_buff,
+    void fill_z_s(const projector &projector, const std::vector<shape> &meshes,
+                  ds::e_cache_map<triangle> &list_of_tris, z_buffer &z_buff,
                   seen_buffer &s_buff) const;
 
     // phong normal interpolaton, muliple samples per pixel, and BRDF

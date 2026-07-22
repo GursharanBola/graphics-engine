@@ -18,16 +18,16 @@ Eigen::Vector3d engine_helper::project_point(const Eigen::Vector3d &p1,
     return Eigen::Vector3d(x_cam * ratio, y_cam * ratio, z_cam);
 }
 
-raw_tri engine_helper::proj_tri(const raw_tri &tri,
-                                const Eigen::Vector3d &cam_u,
-                                const Eigen::Vector3d &cam_v,
-                                const Eigen::Vector3d &cam_w,
-                                const Eigen::Vector3d &origin,
-                                const double focal_len) {
-    return raw_tri{
-        project_point(tri.p1, cam_u, cam_v, cam_w, origin, focal_len),
-        project_point(tri.p2, cam_u, cam_v, cam_w, origin, focal_len),
-        project_point(tri.p3, cam_u, cam_v, cam_w, origin, focal_len)};
+triangle engine_helper::proj_tri(const triangle &tri,
+                                 const Eigen::Vector3d &cam_u,
+                                 const Eigen::Vector3d &cam_v,
+                                 const Eigen::Vector3d &cam_w,
+                                 const Eigen::Vector3d &origin,
+                                 const double focal_len) {
+    return triangle{
+        project_point(tri.point1, cam_u, cam_v, cam_w, origin, focal_len),
+        project_point(tri.point2, cam_u, cam_v, cam_w, origin, focal_len),
+        project_point(tri.point3, cam_u, cam_v, cam_w, origin, focal_len)};
 }
 
 bound_box<int>
@@ -56,6 +56,55 @@ engine_helper::create_box(const Eigen::Vector3d &p1, const Eigen::Vector3d &p2,
     return bound_box<int>{
         std::clamp(left, 0, img_length), std::clamp(right, 0, img_length),
         std::clamp(top, 0, img_width), std::clamp(bottom, 0, img_width)};
+}
+
+void engine_helper::take_avg(const color_buffer &color_buff,
+                             image_buffer &img) {
+    const int sqrt_samples = color_buff.get_sqrt_samples();
+    const int inv_samples = 1 / (sqrt_samples * sqrt_samples);
+    const int img_length = color_buff.get_length_p();
+    const int img_height = color_buff.get_width_p();
+    std::vector<Eigen::Vector3d> run_tot(img_length);
+    int img_height_s = img_height * sqrt_samples;
+    int img_length_s = img_length * sqrt_samples;
+    int pixel_y = 0;
+    int sub_y = 0;
+    for (int j = 0; j < img_height_s; ++j) {
+        int pixel_x = 0;
+        int sub_x = 0;
+        for (int i = 0; i < img_length_s; ++i) {
+            run_tot[pixel_x] += color_buff.get(i, j).val;
+            sub_x++;
+            if (sub_x == sqrt_samples) {
+                pixel_x++;
+                sub_x = 0;
+            }
+        }
+        sub_y++;
+        if (sub_y == sqrt_samples) {
+            for (int x = 0; x < run_tot.size(); ++x) {
+                Eigen::Vector3d avg_col =
+                    (run_tot[x] * inv_samples).array().min(1.0).max(0.0);
+                img.set_color(x, pixel_y, avg_col);
+            }
+            std::fill(run_tot.begin(), run_tot.end(), Eigen::Vector3d::Zero());
+            pixel_y++;
+            sub_y = 0;
+        }
+    }
+}
+
+double engine_helper::f_pow(double val, unsigned int pow) {
+    double res = 1.0;
+    double base = val;
+    while (pow > 0) {
+        if (pow & 1) {
+            res *= base;
+        }
+        base *= base;
+        pow >>= 1;
+    }
+    return res;
 }
 
 double engine_helper::edge_func(const Eigen::Vector3d &a,
@@ -198,10 +247,10 @@ void engine_helper::rast_tri(const bound_box<int> &b_box,
 
     const double s_pix_to_world_x = 2.0 * a_ratio / paren_len;
     const double s_pix_to_world_y = 2.0 / paren_wid;
-    const raw_tri &p_tri = args.p_tri;
-    const double p1_z = p_tri.p1[2];
-    const double p2_z = p_tri.p2[2];
-    const double p3_z = p_tri.p3[2];
+    const triangle &p_tri = args.p_tri;
+    const double p1_z = p_tri.point1[2];
+    const double p2_z = p_tri.point2[2];
+    const double p3_z = p_tri.point3[2];
     const double inv_p1_z = 1.0 / p1_z;
     const double inv_p2_z = 1.0 / p2_z;
     const double inv_p3_z = 1.0 / p3_z;
@@ -214,7 +263,8 @@ void engine_helper::rast_tri(const bound_box<int> &b_box,
         for (int k = left; k < right; ++k) {
             double world_x = (k + 0.5) * s_pix_to_world_x - a_ratio;
             Eigen::Vector3d test{world_x, world_y, 0};
-            Eigen::Vector3d bary = get_bary(p_tri.p1, p_tri.p2, p_tri.p3, test);
+            Eigen::Vector3d bary =
+                get_bary(p_tri.point1, p_tri.point2, p_tri.point3, test);
             if (bary[0] < 0.0 || bary[1] < 0.0 || bary[2] < 0.0) {
                 continue;
             }

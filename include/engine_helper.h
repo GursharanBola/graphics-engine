@@ -1,50 +1,5 @@
 #include "buffer.h"
 #include <memory>
-#include <vector>
-
-// efficient cache map, astores tri_refs densely to avoid cache misses
-// also optimizes iteration order, using post_process()
-
-// counts_in is the max number of triangles in each mesh
-struct cached_tri {
-    int tri_index;
-    raw_tri p_tri;
-    bound_box<int> b_box;
-    bool operator<(const cached_tri &other) const {
-        return tri_index < other.tri_index;
-    }
-};
-
-template <typename T> struct e_cache_map {
-    std::vector<T> data;
-    std::vector<int> initial;
-    std::vector<int> offsets;
-    e_cache_map(const std::vector<int> &counts_in) {
-        int num_meshes = counts_in.size();
-        offsets.resize(num_meshes);
-        initial.resize(num_meshes);
-        int current_total = 0;
-        for (int i = 0; i < num_meshes; ++i) {
-            initial[i] = current_total;
-            offsets[i] = current_total;
-            current_total += counts_in[i];
-        }
-        data.resize(current_total);
-    }
-    void add_tri(const int m_id, const T &item) {
-        data[offsets[m_id]] = item;
-        offsets[m_id]++;
-    }
-    void post_process() {
-        int num_meshes = initial.size();
-        for (int m_id = 0; m_id < num_meshes; ++m_id) {
-            int start = initial[m_id];
-            int end = offsets[m_id];
-            std::sort(data.begin() + start, data.begin() + end);
-        }
-    }
-    void clear() { offsets = initial; }
-};
 
 // project a point and correct for depth
 namespace engine_helper {
@@ -54,18 +9,19 @@ project_point(const Eigen::Vector3d &p1, const Eigen::Vector3d &cam_u,
               const Eigen::Vector3d &origin, const double focal_len);
 
 // project a triangle and correct for depth
-raw_tri proj_tri(const raw_tri &tri, const Eigen::Vector3d &cam_u,
-                 const Eigen::Vector3d &cam_v, const Eigen::Vector3d &cam_w,
-                 const Eigen::Vector3d &origin, const double focal_len);
-
-// bound_box() runs on world coordinates on the plane of interest
-bound_box<double> w_box(const Eigen::Vector3d &p1, const Eigen::Vector3d &p2,
-                        const Eigen::Vector3d &p3, const double aspect_ratio);
+triangle proj_tri(const triangle &tri, const Eigen::Vector3d &cam_u,
+                  const Eigen::Vector3d &cam_v, const Eigen::Vector3d &cam_w,
+                  const Eigen::Vector3d &origin, const double focal_len);
 
 // create a bound box in terms of pixels on an image_buffer
 bound_box<int> create_box(const Eigen::Vector3d &p1, const Eigen::Vector3d &p2,
                           const Eigen::Vector3d &p3, const double aspect_ratio,
                           const int img_length, const int img_width);
+
+// takes the average of each pixel and ouputs the image
+void take_avg(const color_buffer &c_buff, image_buffer &img);
+
+double f_pow(const double val, const unsigned int pow);
 
 // Pineda's edge function
 double edge_func(const Eigen::Vector3d &a, const Eigen::Vector3d &b,
@@ -108,7 +64,7 @@ void with_buff(Func &&job, const bound_box<int> &b_box, BuffType &buffs,
 template <typename T> struct ra_tri_args {
     const int paren_len; // in sub_pixels
     const int paren_wid; // in sub_pixels
-    const raw_tri &p_tri;
+    const triangle &p_tri;
     const T &val;
 };
 

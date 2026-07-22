@@ -3,10 +3,10 @@
 
 #include "buffer.h"
 #include "consts.h"
+#include "ds.h"
 #include "material.h"
 #include "mesh.h"
 #include "projector.h"
-#include <memory>
 
 /*
  * Scenes are a container for the buffers that the program uses. Also note
@@ -42,47 +42,40 @@ class scene {
           ambient_color(ambient_color) {};
 
     void add_sphere(const Eigen::Vector3d &center, const double radius,
-                    const color &mesh_color, std::unique_ptr<material> mat,
+                    const color &mesh_color, material &mat,
                     const int num_samples) {
-        if (mat->is_metal) {
-            mat->metal_data = cube_maps.size();
+        if (mat.is_metal) {
+            mat.metal_data = cube_maps.size();
             const int side_len = 2 * radius * consts::CUBE_MAP_PIXEL_DENSITY;
             for (int i = 0; i < 6; ++i) {
                 cube_maps.emplace_back(image_buffer{side_len, side_len, 1});
             }
         }
-        meshes.emplace_back(
-            std::make_unique<sphere>(meshes.size(), center, radius, mesh_color,
-                                     std::move(mat), num_samples, v_buffer));
+        mats.emplace_back(std::move(mat));
+        meshes.emplace_back(sphere{(int)meshes.size(), center, radius,
+                                   num_samples, list_of_tri});
     }
 
     void add_quad(const Eigen::Vector3d &origin, const Eigen::Vector3d &u,
                   const Eigen::Vector3d &v, const color &mesh_color,
-                  std::unique_ptr<material> mat) {
-        if (mat->is_metal) {
-            mat->metal_data = cube_maps.size();
+                  material &mat) {
+        if (mat.is_metal) {
+            mat.metal_data = cube_maps.size();
             const int side_len =
                 std::max(u.norm(), v.norm()) * consts::CUBE_MAP_PIXEL_DENSITY;
             cube_maps.emplace_back(image_buffer{side_len, side_len, 1});
         }
-        meshes.emplace_back(std::make_unique<quad>(
-            meshes.size(), origin, u, v, mesh_color, std::move(mat), v_buffer));
+        mats.emplace_back(std::move(mat));
+        meshes.emplace_back(
+            quad{(int)meshes.size(), origin, u, v, list_of_tri});
     }
 
     void add_light(const Eigen::Vector3d &origin, const Eigen::Vector3d &cam_u,
                    const Eigen::Vector3d &cam_v, const Eigen::Vector3d &cam_w,
                    const color &light_color, const double focal_len) {
-        z_buffer_lights.emplace_back(img_length, img_height, sqrt_samples);
+        lights.emplace_back(origin, cam_u, cam_v, cam_w, light_color,
+                            focal_len);
         s_buffer_lights.emplace_back(img_length, img_height, sqrt_samples);
-        lights.emplace_back(std::make_unique<light>(origin, cam_u, cam_v, cam_w,
-                                                    light_color, focal_len));
-    }
-
-    void add_light_s_buff() {
-        s_buffer_lights.emplace_back(img_length, img_height, sqrt_samples);
-    }
-
-    void add_light_z_buff() {
         z_buffer_lights.emplace_back(img_length, img_height, sqrt_samples);
     }
 
@@ -92,7 +85,6 @@ class scene {
         z_buffer_cam.clear();
         s_buffer_cam.clear();
         img.clear();
-        v_buffer.clear();
         z_buffer_lights.clear();
         s_buffer_lights.clear();
         ambient_color = color{0, 0, 0};
@@ -104,17 +96,19 @@ class scene {
     int get_sqrt_samples() const { return sqrt_samples; }
 
   protected:
+    std::vector<shape> meshes;
+    // all triangles are in this e_cache_map
+    ds::e_cache_map<triangle> list_of_tri;
+    std::vector<material> mats;
+    std::vector<light> lights;
+
     image_buffer img;
     color_buffer col_buffer;
-    vertex_buffer v_buffer;
     z_buffer z_buffer_cam;
     seen_buffer s_buffer_cam;
     std::vector<z_buffer> z_buffer_lights;
     std::vector<seen_buffer> s_buffer_lights;
     std::vector<z_buffer> cubemaps_z;
-    std::vector<seen_buffer> scratch_s;
-    std::vector<std::unique_ptr<mesh>> meshes;
-    std::vector<std::unique_ptr<light>> lights;
     std::vector<image_buffer> cube_maps;
     color ambient_color;
 };

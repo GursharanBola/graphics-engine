@@ -6,8 +6,9 @@
  * This idea was taken from RTIOW.
  */
 
-color color_buffer::get_color(const int pix_x, const int pix_y,
-                              const int s_pix_x, const int s_pix_y) const {
+const color color_buffer::get_color(const int pix_x, const int pix_y,
+                                    const int s_pix_x,
+                                    const int s_pix_y) const {
     if (pix_y < 0 || pix_y >= get_width_p() || pix_x < 0 ||
         pix_x >= get_length_p()) {
         return color{0, 0, 0};

@@ -4,11 +4,11 @@
 #include <Eigen/Dense>
 #include <vector>
 
-struct raw_tri {
-    Eigen::Vector3d p1;
-    Eigen::Vector3d p2;
-    Eigen::Vector3d p3;
-};
+typedef struct triangle {
+    Eigen::Vector3d point1;
+    Eigen::Vector3d point2;
+    Eigen::Vector3d point3;
+} triangle;
 
 struct tri_ref {
     int mesh_id = -1;
@@ -21,6 +21,15 @@ struct tri_ref {
 template <typename T> struct bound_box {
     T min_x = 0, max_x = 0;
     T min_y = 0, max_y = 0;
+};
+
+struct cached_tri {
+    int tri_index;
+    triangle p_tri;
+    bound_box<int> b_box;
+    bool operator<(const cached_tri &other) const {
+        return tri_index < other.tri_index;
+    }
 };
 
 // colors hold values [0, 1]
@@ -79,6 +88,7 @@ class z_buffer : public buffer<double> {
     }
 };
 
+// tells us what is visible on the program
 class seen_buffer : public buffer<tri_ref> {
   public:
     seen_buffer(const int length, const int width, const int sqrt_samples)
@@ -98,8 +108,8 @@ class color_buffer : public buffer<color> {
         : buffer(length, width, sqrt_samples) {}
     bool set_color(const int pix_x, const int pix_y, const int s_pix_x,
                    const int s_pix_y, const color &color);
-    color get_color(const int pix_x, const int pix_y, const int s_pix_x,
-                    const int s_pix_y) const;
+    const color get_color(const int pix_x, const int pix_y, const int s_pix_x,
+                          const int s_pix_y) const;
 };
 
 // simple buffer, has no sub-pixels
@@ -113,15 +123,4 @@ class image_buffer : public buffer<int> {
     Eigen::Vector3d get_color(const int i, const int j) const;
 };
 
-class vertex_buffer {
-  public:
-    vertex_buffer() = default;
-    void add(const Eigen::Vector3d &v) { data.push_back(v); }
-    Eigen::Vector3d get(const int i) const { return data[i]; }
-    size_t size() const { return data.size(); }
-    void clear() { data.clear(); }
-
-  private:
-    std::vector<Eigen::Vector3d> data;
-};
 #endif
