@@ -15,9 +15,6 @@ class mesh {
          const int num_samples = 1)
         : mesh_id(mesh_id), num_samples(num_samples), origin(origin) {}
 
-    virtual ~mesh() = default;
-    virtual Eigen::Vector3d find_normal(const Eigen::Vector3d &point) const = 0;
-
     Eigen::Vector3d get_origin() const { return origin; }
     int get_id() const { return mesh_id; }
     int get_samples() const { return num_samples; }
@@ -39,10 +36,8 @@ class sphere : public mesh {
         build(list_of_tri);
     }
 
-    virtual void build(ds::e_cache_map<triangle> &list_of_tri);
-    virtual Eigen::Vector3d
-    find_normal(const Eigen::Vector3d &point) const override final;
-
+    void build(ds::e_cache_map<triangle> &list_of_tri);
+    Eigen::Vector3d find_normal(const Eigen::Vector3d &point) const;
     double get_radius() const { return radius; }
 
   private:
@@ -59,8 +54,7 @@ class quad : public mesh {
         build(list_of_tri);
     }
 
-    virtual Eigen::Vector3d
-    find_normal(const Eigen::Vector3d &point) const override final;
+    Eigen::Vector3d find_normal(const Eigen::Vector3d &point) const;
     void build(ds::e_cache_map<triangle> &list_of_tri);
     Eigen::Vector3d get_u() const { return u; }
     Eigen::Vector3d get_v() const { return v; }
@@ -75,11 +69,19 @@ using shape = std::variant<sphere, quad>;
 
 inline Eigen::Vector3d find_normal_at(const shape &s,
                                       const Eigen::Vector3d &point) {
-    return std::visit(
-        [&point](const auto &actual_shape) {
-            return actual_shape.find_normal(point);
-        },
-        s);
+    if (std::holds_alternative<sphere>(s)) {
+        return std::get<sphere>(s).find_normal(point);
+    } else {
+        return std::get<quad>(s).find_normal(point);
+    }
+}
+
+inline Eigen::Vector3d get_origin_of(const shape &s) {
+    if (std::holds_alternative<sphere>(s)) {
+        return std::get<sphere>(s).get_origin();
+    } else {
+        return std::get<quad>(s).get_origin();
+    }
 }
 
 #endif

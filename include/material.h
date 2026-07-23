@@ -9,7 +9,7 @@ struct material {
     material()
         : material{0, 0, Eigen::Vector3d{.4, .4, .4}, color{1, 1, 1}, false} {};
     material(const double shine, const double metalic,
-             const Eigen::Vector3d reflectance, const color col,
+             const Eigen::Vector3d &reflectance, const color &col,
              const bool is_metal)
         : shine(shine), metalic(metalic), reflectance(reflectance), col(col),
           is_metal(is_metal) {}
@@ -19,6 +19,7 @@ struct material {
     Eigen::Vector3d reflectance; // each element bounded between [0,1]
     color col;                   // the mesh's color
     bool is_metal;               // tells us if the material is a metal
+    int metal_faces = 0;         // tells program how many metal faces there are
     int metal_data = -1;         // index to its cube mapped reflection buffers
 };
 

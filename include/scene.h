@@ -10,16 +10,9 @@
 
 /*
  * Scenes are a container for the buffers that the program uses. Also note
- * that since the program renders one color at a time and one mesh at a time
- * only one colorbuffer is needed
+ * that since the program renders s_pixel at a time after all preprocessing is
+ * done.
  */
-
-/* TODO: Design Changes --> Cube Mapped Reflections (CMR)
-**
-** when taking in a mesh, check if the object is a metal and then determine
-** the box, and then use conts::CUBE_MAP_PIXEL_DENSITY to determine the side len
-** of the cube.
-*/
 
 class scene {
   private:
@@ -45,10 +38,14 @@ class scene {
                     const color &mesh_color, material &mat,
                     const int num_samples) {
         if (mat.is_metal) {
-            mat.metal_data = cube_maps.size();
+            mat.metal_data = cubemaps.size();
+            mat.metal_faces = 6;
+
             const int side_len = 2 * radius * consts::CUBE_MAP_PIXEL_DENSITY;
             for (int i = 0; i < 6; ++i) {
-                cube_maps.emplace_back(image_buffer{side_len, side_len, 1});
+                cubemaps.emplace_back(color_buffer{side_len, side_len, 1});
+                cubemaps_z.emplace_back(z_buffer{side_len, side_len, 1});
+                cubemaps_s.emplace_back(seen_buffer{side_len, side_len, 1});
             }
         }
         mats.emplace_back(std::move(mat));
@@ -60,10 +57,16 @@ class scene {
                   const Eigen::Vector3d &v, const color &mesh_color,
                   material &mat) {
         if (mat.is_metal) {
-            mat.metal_data = cube_maps.size();
+            mat.metal_data = cubemaps.size();
+            mat.metal_faces = 2;
+
             const int side_len =
                 std::max(u.norm(), v.norm()) * consts::CUBE_MAP_PIXEL_DENSITY;
-            cube_maps.emplace_back(image_buffer{side_len, side_len, 1});
+            for (int i = 0; i < 2; ++i) {
+                cubemaps.emplace_back(color_buffer{side_len, side_len, 1});
+                cubemaps_z.emplace_back(z_buffer{side_len, side_len, 1});
+                cubemaps_s.emplace_back(seen_buffer{side_len, side_len, 1});
+            }
         }
         mats.emplace_back(std::move(mat));
         meshes.emplace_back(
@@ -109,7 +112,8 @@ class scene {
     std::vector<z_buffer> z_buffer_lights;
     std::vector<seen_buffer> s_buffer_lights;
     std::vector<z_buffer> cubemaps_z;
-    std::vector<image_buffer> cube_maps;
+    std::vector<seen_buffer> cubemaps_s;
+    std::vector<color_buffer> cubemaps;
     color ambient_color;
 };
 

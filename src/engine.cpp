@@ -4,6 +4,7 @@
 #include "consts.h"
 #include "ds.h"
 #include "engine_helper.h"
+#include "mesh.h"
 #include "projector.h"
 #include <algorithm>
 #include <stdexcept>
@@ -13,8 +14,8 @@
 // TODO: ensure valid backface culling and projection using -cam_w
 void engine::fill_z_s(const projector &projector,
                       const std::vector<shape> &meshes,
-                      ds::e_cache_map<triangle> &list_of_tris, z_buffer &z_buff,
-                      seen_buffer &s_buff) const {
+                      const ds::e_cache_map<triangle> &list_of_tris,
+                      z_buffer &z_buff, seen_buffer &s_buff) const {
     const Eigen::Vector3d &cam_u = projector.get_u();
     const Eigen::Vector3d &cam_v = projector.get_v();
     const Eigen::Vector3d &cam_w = projector.get_w();
@@ -117,11 +118,11 @@ void engine::color_buffs() {
     const int width = width_p * sqrt_samples;
     const double inv_pi = 1.0 / EIGEN_PI;
     const Eigen::Vector3d ones = Eigen::Vector3d::Ones();
-    const Eigen::Vector3d &cam_o = camera.get_o();
-    const Eigen::Vector3d &cam_u = camera.get_u();
-    const Eigen::Vector3d &cam_v = camera.get_v();
-    const Eigen::Vector3d &cam_w = camera.get_w();
-    const double cam_focal_len = camera.get_f_len();
+    const Eigen::Vector3d &cam_o = cam.get_o();
+    const Eigen::Vector3d &cam_u = cam.get_u();
+    const Eigen::Vector3d &cam_v = cam.get_v();
+    const Eigen::Vector3d &cam_w = cam.get_w();
+    const double cam_focal_len = cam.get_f_len();
     const color &ambient = scene.ambient_color;
     const int num_meshes = scene.meshes.size();
     const int num_lights = scene.lights.size();
@@ -138,6 +139,7 @@ void engine::color_buffs() {
     const seen_buffer &cam_s_buff = scene.s_buffer_cam;
     color_buffer &col_buff = scene.col_buffer;
 
+    // mulithreading would go here
     for (int j = 0; j < width; ++j) {
         const double world_y = (j + 0.5) * s_pix_to_world_y - 1;
         for (int i = 0; i < length; ++i) {
@@ -242,6 +244,7 @@ void engine::render() {
     color_buffer &color_buff = scene.col_buffer;
     image_buffer &img = scene.img;
     fill_all_z_s();
+    fill_ref_v_s();
     color_buffs();
     engine_helper::take_avg(color_buff, img);
 }
@@ -252,10 +255,9 @@ void engine::fill_all_z_s() {
     ds::e_cache_map<triangle> &list_of_tri = scene.list_of_tri;
     std::vector<z_buffer> &z_buffer_lights = scene.z_buffer_lights;
     std::vector<seen_buffer> &s_buffer_lights = scene.s_buffer_lights;
-    std::vector<shape> &meshes = scene.meshes;
-    std::vector<light> &lights = scene.lights;
-
-    fill_z_s(camera, meshes, list_of_tri, z_buffer_cam, s_buffer_cam);
+    const std::vector<shape> &meshes = scene.meshes;
+    const std::vector<light> &lights = scene.lights;
+    fill_z_s(cam, meshes, list_of_tri, z_buffer_cam, s_buffer_cam);
     int z_buffer_lights_size = z_buffer_lights.size();
     for (size_t i = 0; i < z_buffer_lights_size; ++i) {
         fill_z_s(lights[i], meshes, list_of_tri, z_buffer_lights[i],
@@ -263,17 +265,57 @@ void engine::fill_all_z_s() {
     }
 }
 
-void engine::make_cube_map(const mesh &metal_mesh, const int side_len) {}
-
-void engine::make_cube_map_face(const mesh &metal_mesh, const int side_len,
-                                Eigen::Vector3d &cam_u, Eigen::Vector3d &cam_v,
-                                Eigen::Vector3d &cam_w,
-                                const int cube_maps_index) {}
-
-Eigen::Vector3d engine::get_cube_color(const int metal_data,
-                                       const Eigen::Vector3d &r_dir,
-                                       const Eigen::Vector3d &r_origin) const {
-    return Eigen::Vector3d{};
+void engine::fill_ref_v_s() {
+    std::vector<seen_buffer> &cubemaps_s = scene.cubemaps_s;
+    std::vector<z_buffer> &cubemaps_z = scene.cubemaps_z;
+    const std::vector<shape> &meshes = scene.meshes;
+    const std::vector<material> &mats = scene.mats;
+    const ds::e_cache_map<triangle> &list_of_tris = scene.list_of_tri;
+    const int num_meshes = meshes.size();
+    const double f_len = 1.0; // associated w/ 90* angle fov
+    for (size_t ith_mesh = 0; ith_mesh < num_meshes; ++ith_mesh) {
+        const material &mat = mats[ith_mesh];
+        const int data_index = mat.metal_data;
+        const int metal_faces = mat.metal_faces;
+        if (!mat.is_metal) {
+            continue;
+        }
+        const Eigen::Vector3d &origin = get_origin_of(meshes[ith_mesh]);
+        const Eigen::Vector3d cam_u{-1, 0, 0};
+        const Eigen::Vector3d cam_v{0, 1, 0};
+        const Eigen::Vector3d cam_w{0, 0, 1};
+        if (const quad *q = std::get_if<quad>(&meshes[ith_mesh])) {
+            const Eigen::Vector3d quad_u = q->get_u();
+            const Eigen::Vector3d quad_v = q->get_v();
+            const Eigen::Vector3d quad_w = q->find_normal(origin);
+            fill_z_s(camera{origin, quad_u, quad_v, quad_w, f_len}, meshes,
+                     list_of_tris, cubemaps_z[data_index],
+                     cubemaps_s[data_index]);
+            fill_z_s(camera{origin, quad_u, quad_v, -quad_w, f_len}, meshes,
+                     list_of_tris, cubemaps_z[data_index + 1],
+                     cubemaps_s[data_index + 1]);
+            continue;
+        }
+        fill_z_s(camera{origin, cam_v, cam_w, cam_u, f_len}, meshes,
+                 list_of_tris, cubemaps_z[data_index], cubemaps_s[data_index]);
+        fill_z_s(camera{origin, cam_w, cam_v, cam_u, f_len}, meshes,
+                 list_of_tris, cubemaps_z[data_index + 1],
+                 cubemaps_s[data_index + 1]);
+        fill_z_s(camera{origin, cam_w, cam_u, cam_v, f_len}, meshes,
+                 list_of_tris, cubemaps_z[data_index + 2],
+                 cubemaps_s[data_index + 2]);
+        fill_z_s(camera{origin, cam_u, cam_w, cam_v, f_len}, meshes,
+                 list_of_tris, cubemaps_z[data_index + 3],
+                 cubemaps_s[data_index + 3]);
+        fill_z_s(camera{origin, cam_v, cam_u, cam_w, f_len}, meshes,
+                 list_of_tris, cubemaps_z[data_index + 4],
+                 cubemaps_s[data_index + 4]);
+        fill_z_s(camera{origin, cam_u, cam_v, cam_w, f_len}, meshes,
+                 list_of_tris, cubemaps_z[data_index + 5],
+                 cubemaps_s[data_index + 5]);
+    }
 }
 
-void engine::make_quad_map(const mesh &metal_quad) {}
+void engine::make_face(const mesh &metal_mesh, const int side_len,
+                       Eigen::Vector3d &cam_u, Eigen::Vector3d &cam_v,
+                       Eigen::Vector3d &cam_w, const int) {}

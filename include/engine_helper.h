@@ -21,6 +21,7 @@ bound_box<int> create_box(const Eigen::Vector3d &p1, const Eigen::Vector3d &p2,
 // takes the average of each pixel and ouputs the image
 void take_avg(const color_buffer &c_buff, image_buffer &img);
 
+// does val ** pow quickly
 double f_pow(const double val, const unsigned int pow);
 
 // Pineda's edge function

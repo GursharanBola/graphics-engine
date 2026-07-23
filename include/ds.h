@@ -47,7 +47,7 @@ template <typename T> struct e_cache_map {
     }
     void clear() { offsets = initial; }
     int num_meshes() { return initial.size(); }
-    int mesh_size(const int m_id) {
+    int mesh_size(const int m_id) const {
         if (m_id < 0 || m_id >= static_cast<int>(initial.size())) {
             return 0;
         }
