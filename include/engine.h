@@ -16,32 +16,36 @@
 
 class engine {
   public:
-    engine(scene &scene, camera &cam) : scene(scene), cam(cam) {};
+    engine(scene &scene, camera &scene_cam)
+        : scene(scene), scene_cam(scene_cam) {};
 
     // user will use this to render their scene, calls all children in private
     void render();
 
   private:
     scene &scene;
-    camera &cam;
+    camera &scene_cam;
 
-    // gets the color on a reflection, handles both cubemaps and quadmaps
-    double ref_col(const shape &mesh, const Eigen::Vector3d &r_dir,
-                   const Eigen::Vector3d &r_origin);
+    // gets the color on a reflection, handles both cubemaps and quadmaps.
+    // in the case for quad maps, r_dir is either the surface normal
+    // or -surface normal, and r_origin is the pt in world_coords (not at
+    // origin).
+    // for cube maps r_origin must be within bounding bcube of mesh
+    Eigen::Vector3d ref_col(const shape &mesh, const Eigen::Vector3d &r_dir,
+                            const Eigen::Vector3d &r_origin);
+
+    // makes all of cube / quad maps for reflective materials
+    void make_all_maps();
 
     // makes a cubemap for any mesh with a volume. Cubemaps look like:
-    // [front, back, top, bot, left, right] w/ front being -cam_w, top being
-    // cam_v, and right being cam_u.
-    // note -cam_w is right, cam_v is up, cam_u is out of page
-    void make_cubemap(const mesh &mesh, const int side_len);
+    // [front, back, top, bot, left, right] with front being x, top being y
+    // and left being z
+    // x, cam_u is out of page; y, cam_v is up; z, cam_w is left
+    void make_cubemap(const shape &mesh);
 
     // makes projection planes for two quads
-    void make_quadmap(const mesh &quad);
-
-    // makes a single face of the cubemap assumes v, s are populted
-    void make_face(const mesh &metal_mesh, const int side_len,
-                   Eigen::Vector3d &cam_u, Eigen::Vector3d &cam_v,
-                   Eigen::Vector3d &cam_w, const int);
+    // [font, back] is the way this stored
+    void make_quadmap(const shape &quad);
 
     // calls child to fill all projectors' buffers in the scene
     void fill_all_z_s();
@@ -54,9 +58,13 @@ class engine {
                   const ds::e_cache_map<triangle> &list_of_tris,
                   z_buffer &z_buff, seen_buffer &s_buff) const;
 
+    // color all of the buffers cube/quad maps and the final output buffer
+    void color_all_buffs();
+
     // phong normal interpolaton, muliple samples per pixel, and BRDF
-    // this function assumes that fill_v_s run on all buffers as well as
-    // all cube mapped reflections are finished
-    void color_buffs();
+    // this function assumes that fill_v_s run on all buffers.
+    // colors a buffer, can be cubemap or final buffer
+    void color_buff(const camera &cam, const bool is_map,
+                    const seen_buffer &cam_s_buff, color_buffer &col_buff);
 };
 #endif

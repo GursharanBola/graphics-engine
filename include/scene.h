@@ -14,6 +14,13 @@
  * done.
  */
 
+/*
+ makes a cubemap for any mesh with a volume. Cubemaps look like:
+ [front, back, top, bot, left, right] w/ front being -cam_w, top being
+ cam_v, and right being cam_u.
+ note -cam_w is right, cam_v is up, cam_u is out of page
+*/
+
 class scene {
   private:
     int img_length;
@@ -59,13 +66,12 @@ class scene {
         if (mat.is_metal) {
             mat.metal_data = cubemaps.size();
             mat.metal_faces = 2;
-
-            const int side_len =
-                std::max(u.norm(), v.norm()) * consts::CUBE_MAP_PIXEL_DENSITY;
+            int len_p = std::ceil(u.norm() * consts::CUBE_MAP_PIXEL_DENSITY);
+            int wid_p = std::ceil(v.norm() * consts::CUBE_MAP_PIXEL_DENSITY);
             for (int i = 0; i < 2; ++i) {
-                cubemaps.emplace_back(color_buffer{side_len, side_len, 1});
-                cubemaps_z.emplace_back(z_buffer{side_len, side_len, 1});
-                cubemaps_s.emplace_back(seen_buffer{side_len, side_len, 1});
+                cubemaps.emplace_back(color_buffer{len_p, wid_p, 1});
+                cubemaps_z.emplace_back(z_buffer{len_p, wid_p, 1});
+                cubemaps_s.emplace_back(seen_buffer{len_p, wid_p, 1});
             }
         }
         mats.emplace_back(std::move(mat));
@@ -111,9 +117,9 @@ class scene {
     seen_buffer s_buffer_cam;
     std::vector<z_buffer> z_buffer_lights;
     std::vector<seen_buffer> s_buffer_lights;
+    std::vector<color_buffer> cubemaps;
     std::vector<z_buffer> cubemaps_z;
     std::vector<seen_buffer> cubemaps_s;
-    std::vector<color_buffer> cubemaps;
     color ambient_color;
 };
 

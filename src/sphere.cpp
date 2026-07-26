@@ -53,6 +53,14 @@ void sphere::build(ds::e_cache_map<triangle> &list_of_tri) {
         tri = triangle{top_prev + center, bot_curr + center, bot + center};
         bot_prev = bot_curr;
     }
+    const double neg_x = center.x() - radius;
+    const double pos_x = center.x() + radius;
+    const double neg_y = center.y() - radius;
+    const double pos_y = center.y() + radius;
+    const double neg_z = center.z() - radius;
+    const double pos_z = center.z() + radius;
+    b_cube = {Eigen::Vector3d{pos_x, neg_y, pos_z},
+              Eigen::Vector3d{neg_x, pos_y, neg_z}};
 }
 
 Eigen::Vector3d sphere::find_normal(const Eigen::Vector3d &point) const {
