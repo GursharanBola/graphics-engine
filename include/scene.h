@@ -42,7 +42,7 @@ class scene {
           ambient_color(ambient_color) {};
 
     void add_sphere(const Eigen::Vector3d &center, const double radius,
-                    const color &mesh_color, material &mat,
+                    const color &mesh_color, material mat,
                     const int num_samples) {
         if (mat.is_metal) {
             mat.metal_data = cubemaps.size();
@@ -62,7 +62,7 @@ class scene {
 
     void add_quad(const Eigen::Vector3d &origin, const Eigen::Vector3d &u,
                   const Eigen::Vector3d &v, const color &mesh_color,
-                  material &mat) {
+                  material mat) {
         if (mat.is_metal) {
             mat.metal_data = cubemaps.size();
             mat.metal_faces = 2;

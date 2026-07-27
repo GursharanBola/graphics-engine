@@ -14,7 +14,7 @@
 
 // design changes / debugs and checks:
 
-// TODO: ensure valid backface culling and projection using -cam_w
+// TODO: ensure valid backface culling also ensure the peter shirely standard
 
 // TODO: note design changes in engine.h and impliment these design changes
 
@@ -188,7 +188,6 @@ void engine::color_buff(const camera &cam, const bool is_map,
     const std::vector<seen_buffer> &l_s_buffs = scene.s_buffer_lights;
     const ds::e_cache_map<triangle> &list_of_tri = scene.list_of_tri;
 
-    // mulithreading would go here
     for (int j = 0; j < width; ++j) {
         const double world_y = (j + 0.5) * s_pix_to_world_y - y_max;
         for (int i = 0; i < length; ++i) {
@@ -257,7 +256,7 @@ void engine::color_buff(const camera &cam, const bool is_map,
                 const Eigen::Vector3d half = (view - light_w).normalized();
                 const double n_dot_h = std::max(0.0, inter_norm.dot(half));
                 const double n_dot_v = std::max(0.0, inter_norm.dot(view));
-                const double n_dot_l = std::max(0.0, inter_norm.dot(-light_w));
+                const double n_dot_l = std::max(0.0, inter_norm.dot(light_w));
                 if (n_dot_l <= 0.0) {
                     continue;
                 }
@@ -309,43 +308,51 @@ void engine::make_cubemap(const shape &mesh) {
     const int index = scene.mats[m_id].metal_data;
     const double f_len = 1.0;
     const Eigen::Vector3d &origin = get_origin_of(mesh);
-    const Eigen::Vector3d cam_u{-1, 0, 0};
+    const Eigen::Vector3d cam_u{1, 0, 0};
     const Eigen::Vector3d cam_v{0, 1, 0};
     const Eigen::Vector3d cam_w{0, 0, 1};
     const std::vector<seen_buffer> &c_s_buffs = scene.cubemaps_s;
     std::vector<color_buffer> &c_c_buffs = scene.cubemaps;
-    color_buff(camera{origin, cam_v, cam_w, cam_u, f_len}, true,
-               c_s_buffs[index + 0], c_c_buffs[index + 0]);
-    color_buff(camera{origin, cam_w, cam_v, cam_u, f_len}, true,
-               c_s_buffs[index + 1], c_c_buffs[index + 1]);
-    color_buff(camera{origin, cam_w, cam_u, cam_v, f_len}, true,
-               c_s_buffs[index + 2], c_c_buffs[index + 2]);
-    color_buff(camera{origin, cam_u, cam_w, cam_v, f_len}, true,
-               c_s_buffs[index + 3], c_c_buffs[index + 3]);
-    color_buff(camera{origin, cam_v, cam_u, cam_w, f_len}, true,
-               c_s_buffs[index + 4], c_c_buffs[index + 4]);
+
     color_buff(camera{origin, cam_u, cam_v, cam_w, f_len}, true,
+               c_s_buffs[index + 0], c_c_buffs[index + 0]);
+
+    color_buff(camera{origin, -cam_u, cam_v, -cam_w, f_len}, true,
+               c_s_buffs[index + 1], c_c_buffs[index + 1]);
+
+    color_buff(camera{origin, cam_u, -cam_w, cam_v, f_len}, true,
+               c_s_buffs[index + 2], c_c_buffs[index + 2]);
+
+    color_buff(camera{origin, cam_u, cam_w, -cam_v, f_len}, true,
+               c_s_buffs[index + 3], c_c_buffs[index + 3]);
+
+    color_buff(camera{origin, cam_w, cam_v, -cam_u, f_len}, true,
+               c_s_buffs[index + 4], c_c_buffs[index + 4]);
+
+    color_buff(camera{origin, -cam_w, cam_v, cam_u, f_len}, true,
                c_s_buffs[index + 5], c_c_buffs[index + 5]);
 }
 
 void engine::make_quadmap(const shape &q) {
-    const int m_id = std::get<quad>(q).mesh_id;
+    const quad &q_ref = std::get<quad>(q);
+    const int m_id = q_ref.mesh_id;
     const int index = scene.mats[m_id].metal_data;
-    const Eigen::Vector3d &u = std::get<quad>(q).u;
-    const Eigen::Vector3d &v = std::get<quad>(q).v;
-    const Eigen::Vector3d &norm = std::get<quad>(q).norm;
-    const double u_norm = std::get<quad>(q).u_norm;
-    const double v_norm = std::get<quad>(q).v_norm;
+    const double u_norm = q_ref.u_norm;
+    const double v_norm = q_ref.v_norm;
+    const Eigen::Vector3d unit_u = q_ref.u / u_norm;
+    const Eigen::Vector3d unit_v = q_ref.v / v_norm;
+    const Eigen::Vector3d &unit_norm = q_ref.norm;
     // note that f_len = 1 / aspect_ratio
     const double f_len = v_norm / u_norm;
     const std::vector<seen_buffer> &c_s_buffs = scene.cubemaps_s;
     std::vector<color_buffer> &c_c_buffs = scene.cubemaps;
     const Eigen::Vector3d &origin = get_origin_of(q);
-    color_buff(camera{origin, u, v, norm, f_len}, true, c_s_buffs[index + 0],
-               c_c_buffs[index + 0]);
-    color_buff(camera{origin, u, v, -norm, f_len}, true, c_s_buffs[index + 1],
-               c_c_buffs[index + 1]);
-};
+    color_buff(camera{origin, unit_u, unit_v, unit_norm, f_len}, true,
+               c_s_buffs[index + 0], c_c_buffs[index + 0]);
+
+    color_buff(camera{origin, -unit_u, unit_v, -unit_norm, f_len}, true,
+               c_s_buffs[index + 1], c_c_buffs[index + 1]);
+}
 
 void engine::fill_all_z_s() {
     z_buffer &z_buffer_cam = scene.z_buffer_cam;
@@ -363,7 +370,7 @@ void engine::fill_all_z_s() {
     }
 }
 
-void engine::fill_ref_v_s() {
+void engine::fill_map_v_s() {
     std::vector<seen_buffer> &cubemaps_s = scene.cubemaps_s;
     std::vector<z_buffer> &cubemaps_z = scene.cubemaps_z;
     const std::vector<shape> &meshes = scene.meshes;
@@ -379,7 +386,8 @@ void engine::fill_ref_v_s() {
             continue;
         }
         const Eigen::Vector3d &origin = get_origin_of(meshes[ith_mesh]);
-        const Eigen::Vector3d cam_u{-1, 0, 0};
+
+        const Eigen::Vector3d cam_u{1, 0, 0};
         const Eigen::Vector3d cam_v{0, 1, 0};
         const Eigen::Vector3d cam_w{0, 0, 1};
         if (const quad *q = std::get_if<quad>(&meshes[ith_mesh])) {
@@ -389,26 +397,32 @@ void engine::fill_ref_v_s() {
             fill_z_s(camera{origin, quad_u, quad_v, quad_w, f_len}, meshes,
                      list_of_tris, cubemaps_z[data_index],
                      cubemaps_s[data_index]);
-            fill_z_s(camera{origin, quad_u, quad_v, -quad_w, f_len}, meshes,
+            fill_z_s(camera{origin, -quad_u, quad_v, -quad_w, f_len}, meshes,
                      list_of_tris, cubemaps_z[data_index + 1],
                      cubemaps_s[data_index + 1]);
             continue;
         }
-        fill_z_s(camera{origin, cam_v, cam_w, cam_u, f_len}, meshes,
+
+        fill_z_s(camera{origin, cam_u, cam_v, cam_w, f_len}, meshes,
                  list_of_tris, cubemaps_z[data_index], cubemaps_s[data_index]);
-        fill_z_s(camera{origin, cam_w, cam_v, cam_u, f_len}, meshes,
+
+        fill_z_s(camera{origin, -cam_u, cam_v, -cam_w, f_len}, meshes,
                  list_of_tris, cubemaps_z[data_index + 1],
                  cubemaps_s[data_index + 1]);
-        fill_z_s(camera{origin, cam_w, cam_u, cam_v, f_len}, meshes,
+
+        fill_z_s(camera{origin, cam_u, -cam_w, cam_v, f_len}, meshes,
                  list_of_tris, cubemaps_z[data_index + 2],
                  cubemaps_s[data_index + 2]);
-        fill_z_s(camera{origin, cam_u, cam_w, cam_v, f_len}, meshes,
+
+        fill_z_s(camera{origin, cam_u, cam_w, -cam_v, f_len}, meshes,
                  list_of_tris, cubemaps_z[data_index + 3],
                  cubemaps_s[data_index + 3]);
-        fill_z_s(camera{origin, cam_v, cam_u, cam_w, f_len}, meshes,
+
+        fill_z_s(camera{origin, cam_w, cam_v, -cam_u, f_len}, meshes,
                  list_of_tris, cubemaps_z[data_index + 4],
                  cubemaps_s[data_index + 4]);
-        fill_z_s(camera{origin, cam_u, cam_v, cam_w, f_len}, meshes,
+
+        fill_z_s(camera{origin, -cam_w, cam_v, cam_u, f_len}, meshes,
                  list_of_tris, cubemaps_z[data_index + 5],
                  cubemaps_s[data_index + 5]);
     }
@@ -418,20 +432,35 @@ Eigen::Vector3d engine::ref_col(const shape &mesh, const Eigen::Vector3d &r_dir,
                                 const Eigen::Vector3d &r_origin) {
     const int m_id = get_id(mesh);
     if (std::holds_alternative<quad>(mesh)) {
-        const Eigen::Vector3d &normal = std::get<quad>(mesh).norm;
-        const Eigen::Vector3d &q_origin = std::get<quad>(mesh).get_origin();
+        const quad &q = std::get<quad>(mesh);
+        const Eigen::Vector3d &normal = q.norm;
+        const Eigen::Vector3d &q_origin = q.get_origin();
+
+        const double u_norm = q.u_norm;
+        const double v_norm = q.v_norm;
+        const Eigen::Vector3d unit_u = q.u / u_norm;
+        const Eigen::Vector3d unit_v = q.v / v_norm;
         const Eigen::Vector3d de_cen_o = r_origin - q_origin;
-        const double u_norm = std::get<quad>(mesh).u_norm;
-        const double v_norm = std::get<quad>(mesh).v_norm;
+
+        double local_x = de_cen_o.dot(unit_u);
+        const double local_y = de_cen_o.dot(unit_v);
         const int pos = (normal == r_dir) ? 0 : 1;
         const int index = scene.mats[m_id].metal_data + pos;
         color_buffer &col_buff = scene.cubemaps[index];
+
         const int length = col_buff.get_length();
         const int width = col_buff.get_width();
-        const double world_to_s_pix_x = length / u_norm * 0.5;
-        const double world_to_s_pix_y = width / v_norm * 0.5;
-        const int s_pix_x = std::floor(world_to_s_pix_x * de_cen_o.x());
-        const int s_pix_y = std::floor(world_to_s_pix_y * de_cen_o.y());
+
+        if (pos == 1) {
+            local_x = u_norm - local_x;
+        }
+
+        int s_pix_x = std::clamp(
+            static_cast<int>(std::floor((local_x / u_norm) * length)), 0,
+            length - 1);
+        int s_pix_y =
+            std::clamp(static_cast<int>(std::floor((local_y / v_norm) * width)),
+                       0, width - 1);
         return col_buff.get(s_pix_x, s_pix_y).val;
     }
 
@@ -452,16 +481,44 @@ Eigen::Vector3d engine::ref_col(const shape &mesh, const Eigen::Vector3d &r_dir,
     const double t_exit = std::min({t_x_exit, t_y_exit, t_z_exit});
     const Eigen::Vector3d loc = t_exit * r_dir + r_origin - get_origin_of(mesh);
     const double world_to_s_pix = side_len / radius * 0.5;
-    const int s_pix_x = std::floor(world_to_s_pix * loc.x());
-    const int s_pix_y = std::floor(world_to_s_pix * loc.y());
-    const int fro = (loc.x() - radius < 0.001) ? 1 : 0;
-    const int bac = (loc.x() + radius < 0.001) ? 1 : 0;
-    const int top = (loc.y() - radius < 0.001) ? 2 : 0;
-    const int bot = (loc.y() + radius < 0.001) ? 3 : 0;
-    const int lef = (loc.z() - radius < 0.001) ? 4 : 0;
-    const int rig = (loc.z() - radius < 0.001) ? 5 : 0;
-    const int pos = fro + bac + top + bot + lef + rig;
-    const int index = scene.mats[m_id].metal_data + pos;
+    const double eps = 1e-3;
+    int face_idx = 0;
+    double local_u = 0.0;
+    double local_v = 0.0;
+    if (std::abs(loc.z() - radius) < eps) {
+        face_idx = 0;
+        local_u = loc.x();
+        local_v = loc.y();
+    } else if (std::abs(loc.z() + radius) < eps) {
+        face_idx = 1;
+        local_u = -loc.x();
+        local_v = loc.y();
+    } else if (std::abs(loc.y() - radius) < eps) {
+        face_idx = 2;
+        local_u = loc.x();
+        local_v = -loc.z();
+    } else if (std::abs(loc.y() + radius) < eps) {
+        face_idx = 3;
+        local_u = loc.x();
+        local_v = loc.z();
+    } else if (std::abs(loc.x() + radius) < eps) {
+        face_idx = 4;
+        local_u = loc.z();
+        local_v = loc.y();
+    } else {
+        face_idx = 5;
+        local_u = -loc.z();
+        local_v = loc.y();
+    }
+    const double local_to_per = 1 / radius * 0.5 + 0.5;
+    const int index = scene.mats[m_id].metal_data + face_idx;
     const color_buffer &col_buff = scene.cubemaps[index];
+    int max_val = static_cast<int>(side_len) - 1;
+    int s_pix_x = std::clamp(
+        static_cast<int>(std::floor((local_u * local_to_per) * side_len)), 0,
+        max_val);
+    int s_pix_y = std::clamp(
+        static_cast<int>(std::floor((local_v * local_to_per) * side_len)), 0,
+        max_val);
     return col_buff.get(s_pix_x, s_pix_y).val;
 }

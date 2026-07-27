@@ -9,7 +9,7 @@ Eigen::Vector3d engine_helper::project_point(const Eigen::Vector3d &p1,
     Eigen::Vector3d translated = p1 - origin;
     double x_cam = translated.dot(cam_u);
     double y_cam = translated.dot(cam_v);
-    double z_cam = -translated.dot(cam_w);
+    double z_cam = translated.dot(cam_w);
     if (std::abs(z_cam) < 1e-6) {
         z_cam = 1e-6;
     }
@@ -175,7 +175,7 @@ void engine_helper::rast_tri(const bound_box<int> &b_box,
 
     const int stride = buf_w * sqrt_samples;
     for (int l = top; l < bot; ++l) {
-        double world_y = 1.0 - (l + 0.5) + s_pix_to_world_y;
+        double world_y = 1.0 - (l + 0.5) * s_pix_to_world_y;
         double world_x = (left + 0.5) * s_pix_to_world_x - a_ratio;
         int mem_idx = l * stride + left;
         for (int k = left; k < right;
