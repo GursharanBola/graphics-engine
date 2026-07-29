@@ -21,6 +21,9 @@
  note -cam_w is right, cam_v is up, cam_u is out of page
 */
 
+// TODO: don't scale the buffer sizes, add a sky box feature (only one cubemap)
+// and user has to upload a skybox, all metal objects sample this instead
+
 class scene {
   private:
     int img_length;
@@ -46,9 +49,7 @@ class scene {
                     const int num_samples) {
         if (mat.is_metal) {
             mat.metal_data = cubemaps.size();
-            mat.metal_faces = 6;
-
-            const int side_len = 2 * radius * consts::CUBE_MAP_PIXEL_DENSITY;
+            const int side_len = consts::MAP_SIDE_LEN;
             for (int i = 0; i < 6; ++i) {
                 cubemaps.emplace_back(color_buffer{side_len, side_len, 1});
                 cubemaps_z.emplace_back(z_buffer{side_len, side_len, 1});
@@ -65,13 +66,11 @@ class scene {
                   material mat) {
         if (mat.is_metal) {
             mat.metal_data = cubemaps.size();
-            mat.metal_faces = 2;
-            int len_p = std::ceil(u.norm() * consts::CUBE_MAP_PIXEL_DENSITY);
-            int wid_p = std::ceil(v.norm() * consts::CUBE_MAP_PIXEL_DENSITY);
-            for (int i = 0; i < 2; ++i) {
-                cubemaps.emplace_back(color_buffer{len_p, wid_p, 1});
-                cubemaps_z.emplace_back(z_buffer{len_p, wid_p, 1});
-                cubemaps_s.emplace_back(seen_buffer{len_p, wid_p, 1});
+            const int side_len = consts::MAP_SIDE_LEN;
+            for (int i = 0; i < 6; ++i) {
+                cubemaps.emplace_back(color_buffer{side_len, side_len, 1});
+                cubemaps_z.emplace_back(z_buffer{side_len, side_len, 1});
+                cubemaps_s.emplace_back(seen_buffer{side_len, side_len, 1});
             }
         }
         mats.emplace_back(std::move(mat));

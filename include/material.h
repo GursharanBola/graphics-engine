@@ -18,8 +18,7 @@ struct material {
     double metalic;              // bounded between [0,1]
     Eigen::Vector3d reflectance; // each element bounded between [0,1]
     color col;                   // the mesh's color
-    bool is_metal;               // tells us if the material is a metal
-    int metal_faces = 0;         // tells program how many metal faces there are
+    bool is_metal;               // metal if material has cube map
     int metal_data = -1;         // index to its cube mapped reflection buffers
 };
 

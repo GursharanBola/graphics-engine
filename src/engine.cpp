@@ -12,6 +12,8 @@
 #include <thread>
 #include <vector>
 
+// TODO: debugging, cube/quad map buffers are of a constant size
+
 // design changes / debugs and checks:
 
 // TODO: ensure valid backface culling also ensure the peter shirely standard
@@ -20,10 +22,16 @@
 
 // potential optimizations:
 
-// TODO: Use as many Eigen functions to speed up the math using SIMD math
-// converting to matrix math probably will yeild speed benefits
+// TODO: Use as many Eigen functions to speed up the math using SIMD converting
+// to matrix math will probably yeild benefits
 
-// TODO: the engine_helper::rast_tri and engine::color_buffs() <-(prob not)
+// TODO: for struct triangle, add data on where it gets projected to and a
+// function to add this cached information
+
+// TODO: in engine::color_buffs() make a simple cache that stores the last
+// triangle's data to avoid looking back up and recalculating it
+
+// TODO: The engine_helper::rast_tri and engine::color_buffs() <-(prob not)
 // may be able to be further optimized by avoiding having to recompute
 // barycentric, as the program goes over the bounding_box
 
@@ -174,13 +182,12 @@ void engine::color_buff(const camera &cam, const bool is_map,
     double world_y_to_s_pix = width / (2.0 * y_max);
     double world_x_to_s_pix = length / (2.0 * x_max);
     if (is_map) {
-        const int rad = length_p / consts::CUBE_MAP_PIXEL_DENSITY * 0.5;
-        x_max = rad;
-        y_max = rad;
-        double s_pix_to_world_x = 2.0 * x_max / length;
-        double s_pix_to_world_y = 2.0 * y_max / width;
-        double world_y_to_s_pix = width / (2.0 * y_max);
-        double world_x_to_s_pix = length / (2.0 * x_max);
+        x_max = 1.0;
+        y_max = 1.0;
+        s_pix_to_world_x = 2.0 * x_max / length;
+        s_pix_to_world_y = 2.0 * y_max / width;
+        world_y_to_s_pix = width / (2.0 * y_max);
+        world_x_to_s_pix = length / (2.0 * x_max);
     }
     const std::vector<shape> &meshes = scene.meshes;
     const std::vector<light> &lights = scene.lights;
@@ -199,16 +206,9 @@ void engine::color_buff(const camera &cam, const bool is_map,
             const shape &c_mesh = meshes[mesh_id];
             const material &mat = mats[mesh_id];
             const color &base_color = mat.col;
+            const bool is_metal = mat.is_metal;
             const double metal = mat.metalic;
             const double shine = mat.shine;
-            const double scaled_shine = (mat.shine + 2.0) * 0.5 * inv_pi;
-            const Eigen::Vector3d &reflectance = mat.reflectance;
-            const Eigen::Vector3d metal_color = (1 - metal) * base_color.val;
-            const Eigen::Vector3d ambient_term =
-                metal_color.cwiseProduct(ambient.val);
-            const Eigen::Vector3d norm_metal_color = metal_color * inv_pi;
-            const Eigen::Vector3d F0 =
-                (1.0 - metal) * reflectance + metal * base_color.val;
 
             const triangle &tri = list_of_tri.get(mesh_id, tri_index);
             const Eigen::Vector3d &p1 = tri.point1;
@@ -217,10 +217,11 @@ void engine::color_buff(const camera &cam, const bool is_map,
             const Eigen::Vector3d n1 = find_normal_at(c_mesh, p1);
             const Eigen::Vector3d n2 = find_normal_at(c_mesh, p2);
             const Eigen::Vector3d n3 = find_normal_at(c_mesh, p3);
+
             const triangle p_tri = engine_helper::proj_tri(
                 tri, cam_u, cam_v, cam_w, cam_o, cam_focal_len);
-            const Eigen::Vector3d bary =
-                engine_helper::get_bary(p1, p2, p3, test);
+            const Eigen::Vector3d bary = engine_helper::get_bary(
+                p_tri.point1, p_tri.point2, p_tri.point3, test);
             const double alpha = bary[0];
             const double beta = bary[1];
             const double gamma = bary[2];
@@ -228,8 +229,33 @@ void engine::color_buff(const camera &cam, const bool is_map,
                 alpha * n1 + beta * n2 + gamma * n3;
             const Eigen::Vector3d world_pos =
                 alpha * p1 + beta * p2 + gamma * p3;
+
             const Eigen::Vector3d view = (cam_o - world_pos).normalized();
+            const Eigen::Vector3d cam_half = (view + cam_w).normalized();
+
+            const Eigen::Vector3d &reflectance = mat.reflectance;
+            const Eigen::Vector3d metal_color = (1 - metal) * base_color.val;
+            const Eigen::Vector3d ambient_term =
+                metal_color.cwiseProduct(ambient.val);
+            const Eigen::Vector3d norm_metal_color = metal_color * inv_pi;
+            const Eigen::Vector3d F0 =
+                (1.0 - metal) * reflectance + metal * base_color.val;
+            const double scaled_shine = (mat.shine + 2.0) * 0.5 * inv_pi;
+            const double n_dot_v = std::max(0.0, inter_norm.dot(view));
+            const double cam_trans = engine_helper::f_pow(1.0 - n_dot_v, 5);
+
             Eigen::Vector3d tot_col = ambient_term;
+
+            if (is_metal && !is_map) {
+                const double env_trans = engine_helper::f_pow(1.0 - n_dot_v, 5);
+                const Eigen::Vector3d env_frensel =
+                    F0 + (ones - F0) * env_trans;
+
+                const Eigen::Vector3d refl_col =
+                    ref_col(c_mesh, inter_norm, world_pos);
+                tot_col += env_frensel.cwiseProduct(refl_col);
+            }
+
             for (size_t ith_light = 0; ith_light < num_lights; ++ith_light) {
                 const light &c_light = lights[ith_light];
                 const seen_buffer &c_l_s_buff = l_s_buffs[ith_light];
@@ -239,27 +265,31 @@ void engine::color_buff(const camera &cam, const bool is_map,
                 const Eigen::Vector3d &light_o = c_light.get_o();
                 const color &l_color = c_light.get_color();
                 const double light_f_len = c_light.get_f_len();
+
                 const Eigen::Vector3d proj_point = engine_helper::project_point(
                     world_pos, light_u, light_v, light_w, light_o, light_f_len);
                 const double x = (proj_point[0] + x_max) * world_x_to_s_pix;
                 const double y = (proj_point[1] + y_max) * world_y_to_s_pix;
                 const int s_pixel_x = static_cast<int>(std::floor(x));
                 const int s_pixel_y = static_cast<int>(std::floor(y));
+
                 if (s_pixel_x < 0 || s_pixel_x >= length || s_pixel_y < 0 ||
                     s_pixel_y >= width) {
                     continue;
                 }
+
                 const tri_ref &l_tri = c_l_s_buff.get(s_pixel_x, s_pixel_y);
                 if (l_tri.mesh_id != mesh_id || l_tri.tri_index != tri_index) {
                     continue;
                 }
-                const Eigen::Vector3d half = (view - light_w).normalized();
+                const Eigen::Vector3d L = (light_o - world_pos).normalized();
+                const Eigen::Vector3d half = (view + L).normalized();
                 const double n_dot_h = std::max(0.0, inter_norm.dot(half));
-                const double n_dot_v = std::max(0.0, inter_norm.dot(view));
-                const double n_dot_l = std::max(0.0, inter_norm.dot(light_w));
+                const double n_dot_l = std::max(0.0, inter_norm.dot(L));
                 if (n_dot_l <= 0.0) {
                     continue;
                 }
+
                 const double v_dot_h = std::max(0.0, view.dot(half));
                 const double distro =
                     scaled_shine * engine_helper::f_pow(n_dot_h, shine);
@@ -269,19 +299,15 @@ void engine::color_buff(const camera &cam, const bool is_map,
                 const double dir_1 = facet * n_dot_v;
                 const double dir_2 = facet * n_dot_l;
                 const double G = std::min<double>({1, dir_1, dir_2});
-                const Eigen::Vector3d spec_brdf =
-                    (distro * frensel * G * 0.25) / std::max(0.0001, n_dot_v);
+
                 const Eigen::Vector3d diff_brdf =
                     (Eigen::Vector3d::Ones() - frensel)
                         .cwiseProduct(norm_metal_color) *
                     n_dot_l;
-                const Eigen::Vector3d added_light =
-                    (diff_brdf + spec_brdf).cwiseProduct(l_color.val);
-                if (is_map) { // avoid reflecting
-                    tot_col += added_light;
-                    continue;
-                }
-                tot_col += added_light;
+                Eigen::Vector3d spec_brdf =
+                    (distro * frensel * G * 0.25) / std::max(0.0001, n_dot_v);
+
+                tot_col += (diff_brdf + spec_brdf).cwiseProduct(l_color.val);
             }
             col_buff.set(i, j, color{tot_col[0], tot_col[1], tot_col[2]});
         }
@@ -295,10 +321,8 @@ void engine::make_all_maps() {
     for (size_t m_id = 0; m_id < num_meshes; ++m_id) {
         if (!mats[m_id].is_metal) {
             continue;
-        } else if (std::holds_alternative<sphere>(meshes[m_id])) {
+        } else {
             make_cubemap(meshes[m_id]);
-        } else if (std::holds_alternative<quad>(meshes[m_id])) {
-            make_quadmap(meshes[m_id]);
         }
     }
 }
@@ -333,27 +357,6 @@ void engine::make_cubemap(const shape &mesh) {
                c_s_buffs[index + 5], c_c_buffs[index + 5]);
 }
 
-void engine::make_quadmap(const shape &q) {
-    const quad &q_ref = std::get<quad>(q);
-    const int m_id = q_ref.mesh_id;
-    const int index = scene.mats[m_id].metal_data;
-    const double u_norm = q_ref.u_norm;
-    const double v_norm = q_ref.v_norm;
-    const Eigen::Vector3d unit_u = q_ref.u / u_norm;
-    const Eigen::Vector3d unit_v = q_ref.v / v_norm;
-    const Eigen::Vector3d &unit_norm = q_ref.norm;
-    // note that f_len = 1 / aspect_ratio
-    const double f_len = v_norm / u_norm;
-    const std::vector<seen_buffer> &c_s_buffs = scene.cubemaps_s;
-    std::vector<color_buffer> &c_c_buffs = scene.cubemaps;
-    const Eigen::Vector3d &origin = get_origin_of(q);
-    color_buff(camera{origin, unit_u, unit_v, unit_norm, f_len}, true,
-               c_s_buffs[index + 0], c_c_buffs[index + 0]);
-
-    color_buff(camera{origin, -unit_u, unit_v, -unit_norm, f_len}, true,
-               c_s_buffs[index + 1], c_c_buffs[index + 1]);
-}
-
 void engine::fill_all_z_s() {
     z_buffer &z_buffer_cam = scene.z_buffer_cam;
     seen_buffer &s_buffer_cam = scene.s_buffer_cam;
@@ -381,7 +384,6 @@ void engine::fill_map_v_s() {
     for (size_t ith_mesh = 0; ith_mesh < num_meshes; ++ith_mesh) {
         const material &mat = mats[ith_mesh];
         const int data_index = mat.metal_data;
-        const int metal_faces = mat.metal_faces;
         if (!mat.is_metal) {
             continue;
         }
@@ -390,19 +392,6 @@ void engine::fill_map_v_s() {
         const Eigen::Vector3d cam_u{1, 0, 0};
         const Eigen::Vector3d cam_v{0, 1, 0};
         const Eigen::Vector3d cam_w{0, 0, 1};
-        if (const quad *q = std::get_if<quad>(&meshes[ith_mesh])) {
-            const Eigen::Vector3d quad_u = q->get_u();
-            const Eigen::Vector3d quad_v = q->get_v();
-            const Eigen::Vector3d quad_w = q->find_normal(origin);
-            fill_z_s(camera{origin, quad_u, quad_v, quad_w, f_len}, meshes,
-                     list_of_tris, cubemaps_z[data_index],
-                     cubemaps_s[data_index]);
-            fill_z_s(camera{origin, -quad_u, quad_v, -quad_w, f_len}, meshes,
-                     list_of_tris, cubemaps_z[data_index + 1],
-                     cubemaps_s[data_index + 1]);
-            continue;
-        }
-
         fill_z_s(camera{origin, cam_u, cam_v, cam_w, f_len}, meshes,
                  list_of_tris, cubemaps_z[data_index], cubemaps_s[data_index]);
 
@@ -431,94 +420,76 @@ void engine::fill_map_v_s() {
 Eigen::Vector3d engine::ref_col(const shape &mesh, const Eigen::Vector3d &r_dir,
                                 const Eigen::Vector3d &r_origin) {
     const int m_id = get_id(mesh);
+    const int side_len = consts::MAP_SIDE_LEN;
+
     if (std::holds_alternative<quad>(mesh)) {
         const quad &q = std::get<quad>(mesh);
-        const Eigen::Vector3d &normal = q.norm;
         const Eigen::Vector3d &q_origin = q.get_origin();
+        const double max_xy = std::max(q.u_norm, q.v_norm);
+        const Eigen::Vector3d box_min = q.b_cube[0];
+        const Eigen::Vector3d box_max = q.b_cube[1];
 
-        const double u_norm = q.u_norm;
-        const double v_norm = q.v_norm;
-        const Eigen::Vector3d unit_u = q.u / u_norm;
-        const Eigen::Vector3d unit_v = q.v / v_norm;
-        const Eigen::Vector3d de_cen_o = r_origin - q_origin;
+        const double t_x_exit = (r_dir.x() > 0.0)
+                                    ? (box_max.x() - r_origin.x()) / r_dir.x()
+                                    : (box_min.x() - r_origin.x()) / r_dir.x();
+        const double t_y_exit = (r_dir.y() > 0.0)
+                                    ? (box_max.y() - r_origin.y()) / r_dir.y()
+                                    : (box_min.y() - r_origin.y()) / r_dir.y();
+        const double t_z_exit = (r_dir.z() > 0.0)
+                                    ? (box_max.z() - r_origin.z()) / r_dir.z()
+                                    : (box_min.z() - r_origin.z()) / r_dir.z();
 
-        double local_x = de_cen_o.dot(unit_u);
-        const double local_y = de_cen_o.dot(unit_v);
-        const int pos = (normal == r_dir) ? 0 : 1;
-        const int index = scene.mats[m_id].metal_data + pos;
-        color_buffer &col_buff = scene.cubemaps[index];
+        double t_exit = std::min({t_x_exit, t_y_exit, t_z_exit});
+        Eigen::Vector3d sur = t_exit * r_dir + r_origin - get_origin_of(mesh);
+        auto [face_idx, local_u, local_v] =
+            engine_helper::get_face(sur, max_xy);
 
-        const int length = col_buff.get_length();
-        const int width = col_buff.get_width();
-
-        if (pos == 1) {
-            local_x = u_norm - local_x;
-        }
-
+        const double local_to_per = (local_u + max_xy) / (2 * max_xy);
+        const int index = scene.mats[m_id].metal_data + face_idx;
+        const color_buffer &col_buff = scene.cubemaps[index];
+        int max_val = static_cast<int>(side_len) - 1;
         int s_pix_x = std::clamp(
-            static_cast<int>(std::floor((local_x / u_norm) * length)), 0,
-            length - 1);
-        int s_pix_y =
-            std::clamp(static_cast<int>(std::floor((local_y / v_norm) * width)),
-                       0, width - 1);
+            static_cast<int>(std::floor((local_u * local_to_per) * side_len)),
+            0, max_val);
+        int s_pix_y = std::clamp(
+            static_cast<int>(std::floor((local_v * local_to_per) * side_len)),
+            0, max_val);
+
+        return col_buff.get(s_pix_x, s_pix_y).val;
+
+    } else {
+        const sphere &s = std::get<sphere>(mesh);
+        const Eigen::Vector3d &s_origin = s.get_origin();
+        const double max_xy = s.get_radius();
+        const Eigen::Vector3d box_min = s.b_cube[0];
+        const Eigen::Vector3d box_max = s.b_cube[1];
+
+        const double t_x_exit = (r_dir.x() > 0.0)
+                                    ? (box_max.x() - r_origin.x()) / r_dir.x()
+                                    : (box_min.x() - r_origin.x()) / r_dir.x();
+        const double t_y_exit = (r_dir.y() > 0.0)
+                                    ? (box_max.y() - r_origin.y()) / r_dir.y()
+                                    : (box_min.y() - r_origin.y()) / r_dir.y();
+        const double t_z_exit = (r_dir.z() > 0.0)
+                                    ? (box_max.z() - r_origin.z()) / r_dir.z()
+                                    : (box_min.z() - r_origin.z()) / r_dir.z();
+
+        double t_exit = std::min({t_x_exit, t_y_exit, t_z_exit});
+        Eigen::Vector3d sur = t_exit * r_dir + r_origin - get_origin_of(mesh);
+        auto [face_idx, local_u, local_v] =
+            engine_helper::get_face(sur, max_xy);
+
+        const double local_to_per = (local_u + max_xy) / (2 * max_xy);
+        const int index = scene.mats[m_id].metal_data + face_idx;
+        const color_buffer &col_buff = scene.cubemaps[index];
+        int max_val = static_cast<int>(side_len) - 1;
+        int s_pix_x = std::clamp(
+            static_cast<int>(std::floor((local_u * local_to_per) * side_len)),
+            0, max_val);
+        int s_pix_y = std::clamp(
+            static_cast<int>(std::floor((local_v * local_to_per) * side_len)),
+            0, max_val);
+
         return col_buff.get(s_pix_x, s_pix_y).val;
     }
-
-    const double radius = std::get<sphere>(mesh).get_radius();
-    // note this is in sub_pixels since there are NO sub_pixels for c_maps
-    const double side_len = 2 * radius * consts::CUBE_MAP_PIXEL_DENSITY;
-    const Eigen::Vector3d box_min = std::get<sphere>(mesh).b_cube[0];
-    const Eigen::Vector3d box_max = std::get<sphere>(mesh).b_cube[1];
-    const double t_x_exit = (r_dir.x() > 0.0)
-                                ? (box_max.x() - r_origin.x()) / r_dir.x()
-                                : (box_min.x() - r_origin.x()) / r_dir.x();
-    const double t_y_exit = (r_dir.y() > 0.0)
-                                ? (box_max.y() - r_origin.y()) / r_dir.y()
-                                : (box_min.y() - r_origin.y()) / r_dir.y();
-    const double t_z_exit = (r_dir.z() > 0.0)
-                                ? (box_max.z() - r_origin.z()) / r_dir.z()
-                                : (box_min.z() - r_origin.z()) / r_dir.z();
-    const double t_exit = std::min({t_x_exit, t_y_exit, t_z_exit});
-    const Eigen::Vector3d loc = t_exit * r_dir + r_origin - get_origin_of(mesh);
-    const double world_to_s_pix = side_len / radius * 0.5;
-    const double eps = 1e-3;
-    int face_idx = 0;
-    double local_u = 0.0;
-    double local_v = 0.0;
-    if (std::abs(loc.z() - radius) < eps) {
-        face_idx = 0;
-        local_u = loc.x();
-        local_v = loc.y();
-    } else if (std::abs(loc.z() + radius) < eps) {
-        face_idx = 1;
-        local_u = -loc.x();
-        local_v = loc.y();
-    } else if (std::abs(loc.y() - radius) < eps) {
-        face_idx = 2;
-        local_u = loc.x();
-        local_v = -loc.z();
-    } else if (std::abs(loc.y() + radius) < eps) {
-        face_idx = 3;
-        local_u = loc.x();
-        local_v = loc.z();
-    } else if (std::abs(loc.x() + radius) < eps) {
-        face_idx = 4;
-        local_u = loc.z();
-        local_v = loc.y();
-    } else {
-        face_idx = 5;
-        local_u = -loc.z();
-        local_v = loc.y();
-    }
-    const double local_to_per = 1 / radius * 0.5 + 0.5;
-    const int index = scene.mats[m_id].metal_data + face_idx;
-    const color_buffer &col_buff = scene.cubemaps[index];
-    int max_val = static_cast<int>(side_len) - 1;
-    int s_pix_x = std::clamp(
-        static_cast<int>(std::floor((local_u * local_to_per) * side_len)), 0,
-        max_val);
-    int s_pix_y = std::clamp(
-        static_cast<int>(std::floor((local_v * local_to_per) * side_len)), 0,
-        max_val);
-    return col_buff.get(s_pix_x, s_pix_y).val;
 }

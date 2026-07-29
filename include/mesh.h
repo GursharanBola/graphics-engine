@@ -78,6 +78,7 @@ class quad : public mesh {
     Eigen::Vector3d u;
     Eigen::Vector3d v;
     Eigen::Vector3d norm;
+    std::array<Eigen::Vector3d, 2> b_cube;
     double u_norm;
     double v_norm;
 };

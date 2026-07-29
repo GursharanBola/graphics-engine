@@ -1,4 +1,5 @@
 #include "buffer.h"
+#include <tuple>
 
 // project a point and correct for depth
 namespace engine_helper {
@@ -16,6 +17,10 @@ triangle proj_tri(const triangle &tri, const Eigen::Vector3d &cam_u,
 bound_box<int> create_box(const Eigen::Vector3d &p1, const Eigen::Vector3d &p2,
                           const Eigen::Vector3d &p3, const double aspect_ratio,
                           const int img_length, const int img_width);
+
+// gets [face, local_u, local_v]
+std::tuple<int, double, double> get_face(const Eigen::Vector3d &cntrd_surf_pt,
+                                         const double max_xy);
 
 // takes the average of each pixel and ouputs the image
 void take_avg(const color_buffer &c_buff, image_buffer &img);

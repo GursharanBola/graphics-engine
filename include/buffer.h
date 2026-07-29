@@ -4,11 +4,25 @@
 #include <Eigen/Dense>
 #include <vector>
 
-typedef struct triangle {
+struct triangle {
+    triangle(const Eigen::Vector3d &p1, const Eigen::Vector3d &p2,
+             const Eigen::Vector3d &p3)
+        : point1(p1), point2(p2), point3(p3) {}
+
+    void cache_p_tri(triangle &p_tri) {
+        p_point1 = p_tri.p_point1;
+        p_point2 = p_tri.p_point1;
+        p_point3 = p_tri.p_point1;
+    }
+
     Eigen::Vector3d point1;
     Eigen::Vector3d point2;
     Eigen::Vector3d point3;
-} triangle;
+
+    Eigen::Vector3d p_point1;
+    Eigen::Vector3d p_point2;
+    Eigen::Vector3d p_point3;
+};
 
 struct tri_ref {
     int mesh_id = -1;

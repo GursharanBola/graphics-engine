@@ -26,32 +26,26 @@ class engine {
     scene &scene;
     camera &scene_cam;
 
-    // gets the color on a reflection, handles both cubemaps and quadmaps.
+    // gets the color on a reflection
 
-    // for quadmaps: r_dir = norm or -norm and r_origin is the point on the quad
-    // in world coordinates.
-
-    // for cubemaps: r_origin is inside of the cube
+    // for cubemaps: r_origin is on surface of mesh, r_dir is the surface normal
     Eigen::Vector3d ref_col(const shape &mesh, const Eigen::Vector3d &r_dir,
                             const Eigen::Vector3d &r_origin);
 
-    // makes all of cube / quad maps for reflective materials
+    // makes all of cubemaps for reflective materials
     void make_all_maps();
 
-    // makes a cubemap for any mesh with a volume. Cubemaps look like:
+    // makes a cubemap for any mesh.
+    // Cubemaps look like:
     // [front, back, top, bot, left, right] with front being z, top being y
     // and right being x
     // x, cam_u goes right; y, cam_v goes up; z, cam_w comes out of the page
     void make_cubemap(const shape &mesh);
 
-    // makes projection planes for two quads
-    // [font, back] is the way this stored
-    void make_quadmap(const shape &quad);
-
     // calls child to fill all projectors' buffers in the scene
     void fill_all_z_s();
 
-    // calls child to fill all v and s buffers for cube/quadmaps
+    // calls child to fill all v and s buffers for cubemaps
     void fill_map_v_s();
 
     // child used to fill in the depth and visibility buffers
@@ -59,7 +53,7 @@ class engine {
                   const ds::e_cache_map<triangle> &list_of_tris,
                   z_buffer &z_buff, seen_buffer &s_buff) const;
 
-    // color all of the buffers cube/quad maps and the final output buffer
+    // fill all color_buffers in the program
     void color_all_buffs();
 
     // phong normal interpolaton, muliple samples per pixel, and BRDF

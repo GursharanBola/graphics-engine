@@ -10,6 +10,18 @@ void quad::build(ds::e_cache_map<triangle> &list_of_tri) {
     triangle &tri2 = list_of_tri.claim_next_slot(mesh_id);
     tri1 = triangle{top_le, bot_le, bot_ri};
     tri2 = triangle{top_le, bot_ri, top_ri};
+
+    double half_width = std::abs(u.x()) + std::abs(v.x());
+    double half_height = std::abs(u.y()) + std::abs(v.y());
+    double max_xy = std::max(half_width, half_height);
+    const double neg_x = origin.x() - max_xy;
+    const double pos_x = origin.x() + max_xy;
+    const double neg_y = origin.y() - max_xy;
+    const double pos_y = origin.y() + max_xy;
+    const double neg_z = origin.z() - max_xy;
+    const double pos_z = origin.z() + max_xy;
+    b_cube = {Eigen::Vector3d{pos_x, neg_y, pos_z},
+              Eigen::Vector3d{neg_x, pos_y, neg_z}};
 }
 
 Eigen::Vector3d quad::find_normal(const Eigen::Vector3d &point) const {

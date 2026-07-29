@@ -1,4 +1,5 @@
 #include "engine_helper.h"
+#include <tuple>
 
 Eigen::Vector3d engine_helper::project_point(const Eigen::Vector3d &p1,
                                              const Eigen::Vector3d &cam_u,
@@ -55,6 +56,45 @@ engine_helper::create_box(const Eigen::Vector3d &p1, const Eigen::Vector3d &p2,
     return bound_box<int>{
         std::clamp(left, 0, img_length), std::clamp(right, 0, img_length),
         std::clamp(top, 0, img_width), std::clamp(bottom, 0, img_width)};
+}
+
+std::tuple<int, double, double>
+engine_helper::get_face(const Eigen::Vector3d &cntrd_surf_pt,
+                        const double max_xy) {
+    const double eps = 1e-4;
+    const double x = cntrd_surf_pt.x();
+    const double y = cntrd_surf_pt.y();
+    const double z = cntrd_surf_pt.z();
+    int face_idx = 0;
+    double local_u = 0.0;
+    double local_v = 0.0;
+
+    if (std::abs(z - max_xy) < eps) {
+        face_idx = 0;
+        local_u = x;
+        local_v = y;
+    } else if (std::abs(z + max_xy) < eps) {
+        face_idx = 1;
+        local_u = x;
+        local_v = y;
+    } else if (std::abs(y - max_xy) < eps) {
+        face_idx = 2;
+        local_u = x;
+        local_v = -z;
+    } else if (std::abs(y + max_xy) < eps) {
+        face_idx = 3;
+        local_u = x;
+        local_v = z;
+    } else if (std::abs(x + max_xy) < eps) {
+        face_idx = 4;
+        local_u = z;
+        local_v = y;
+    } else {
+        face_idx = 5;
+        local_u = -z;
+        local_v = y;
+    }
+    return {face_idx, local_u, local_v};
 }
 
 void engine_helper::take_avg(const color_buffer &color_buff,
