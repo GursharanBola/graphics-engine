@@ -11,17 +11,18 @@ void quad::build(ds::e_cache_map<triangle> &list_of_tri) {
     tri1 = triangle{top_le, bot_le, bot_ri};
     tri2 = triangle{top_le, bot_ri, top_ri};
 
-    double half_width = std::abs(u.x()) + std::abs(v.x());
-    double half_height = std::abs(u.y()) + std::abs(v.y());
-    double max_xy = std::max(half_width, half_height);
-    const double neg_x = origin.x() - max_xy;
-    const double pos_x = origin.x() + max_xy;
-    const double neg_y = origin.y() - max_xy;
-    const double pos_y = origin.y() + max_xy;
-    const double neg_z = origin.z() - max_xy;
-    const double pos_z = origin.z() + max_xy;
-    b_cube = {Eigen::Vector3d{pos_x, neg_y, pos_z},
-              Eigen::Vector3d{neg_x, pos_y, neg_z}};
+    Eigen::Vector3d min_pt =
+        bot_le.cwiseMin(top_le).cwiseMin(bot_ri).cwiseMin(top_ri);
+    Eigen::Vector3d max_pt =
+        bot_le.cwiseMax(top_le).cwiseMax(bot_ri).cwiseMax(top_ri);
+    const double eps = 1e-4;
+    for (int i = 0; i < 3; ++i) {
+        if (max_pt[i] - min_pt[i] < eps) {
+            min_pt[i] -= eps;
+            max_pt[i] += eps;
+        }
+    }
+    b_cube = {min_pt, max_pt};
 }
 
 Eigen::Vector3d quad::find_normal(const Eigen::Vector3d &point) const {

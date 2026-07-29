@@ -51,16 +51,22 @@ class sphere : public mesh {
     double radius;
 };
 
-// quads are useful for making backgrounds, they must be orthoginal simplifies
-// the math by a lot
+// quads are useful for making backgrounds saving myself the headache
+// going to make them axis aligned
 class quad : public mesh {
   public:
     quad(const int mesh_id, const Eigen::Vector3d &origin,
          const Eigen::Vector3d &u, const Eigen::Vector3d &v,
          ds::e_cache_map<triangle> &list_of_tri)
         : mesh(mesh_id, origin), u(u), v(v) {
-        if (std::abs(u.dot(v)) > 1e-6) {
-            throw std::invalid_argument("Vectors u and v must be orthogonal.");
+        const double max_u = u.cwiseAbs().maxCoeff();
+        const double max_v = v.cwiseAbs().maxCoeff();
+        const double eps = 1e-6;
+        if (u.squaredNorm() - max_u * max_u < eps) {
+            throw std::runtime_error("u and v have to be axis aligned");
+        }
+        if (v.squaredNorm() - max_v * max_v < eps) {
+            throw std::runtime_error("u and v have to be axis aligned");
         }
         build(list_of_tri);
         u_norm = u.norm();

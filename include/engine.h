@@ -35,7 +35,7 @@ class engine {
     // makes all of cubemaps for reflective materials
     void make_all_maps();
 
-    // makes a cubemap for any mesh.
+    // makes a cubemap for any shapes with volumes.
     // Cubemaps look like:
     // [front, back, top, bot, left, right] with front being z, top being y
     // and right being x

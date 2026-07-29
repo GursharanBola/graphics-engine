@@ -9,19 +9,21 @@ struct triangle {
              const Eigen::Vector3d &p3)
         : point1(p1), point2(p2), point3(p3) {}
 
-    void cache_p_tri(triangle &p_tri) {
-        p_point1 = p_tri.p_point1;
-        p_point2 = p_tri.p_point1;
-        p_point3 = p_tri.p_point1;
-    }
+    // void cache_p_tri(const Eigen::Vector3d &a_norm1,
+    //                  const Eigen::Vector3d &a_norm2,
+    //                  const Eigen::Vector3d &a_norm3) {
+    //     norm1 = a_norm1;
+    //     norm2 = a_norm2;
+    //     norm3 = a_norm3;
+    // }
 
     Eigen::Vector3d point1;
     Eigen::Vector3d point2;
     Eigen::Vector3d point3;
 
-    Eigen::Vector3d p_point1;
-    Eigen::Vector3d p_point2;
-    Eigen::Vector3d p_point3;
+    //    Eigen::Vector3d norm1;
+    //    Eigen::Vector3d norm2;
+    //    Eigen::Vector3d norm3;
 };
 
 struct tri_ref {
