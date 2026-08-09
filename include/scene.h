@@ -15,9 +15,11 @@
  */
 
 /*
- Cubemaps look like: [front, back, top, bot, left, right]
- w/ right is cam_u, up is cam_v, and front / out of the screen is cam_w
-*/
+ * Cubemaps look like:
+ * [front, back, top, bot, left, right] with front being z, top being y
+ * and right being x, cam_u goes right; y, cam_v goes up; z, cam_w comes out of
+ * the page
+ */
 
 // TODO: quads will not use cubes for reflections
 

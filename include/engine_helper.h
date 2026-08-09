@@ -20,10 +20,12 @@ bound_box<int> create_box(const Eigen::Vector3d &p1, const Eigen::Vector3d &p2,
 
 // gets [face, per_x, per_y], per_x and per_y are the percent in the horizontal
 // and vertical directions of the face of the image buffer
-std::tuple<int, double, double> get_face(const Eigen::Vector3d &cntrd_surf_pt,
-                                         const double half_wid_x,
-                                         const double half_wid_y,
-                                         const double half_wid_z);
+//
+// get_face also assumes that the point it is provided is on a the bounding box
+// once it's center has been translated to the origin
+std::tuple<int, double, double>
+get_face(const Eigen::Vector3d &cen_point_on_box, const double half_wid_x,
+         const double half_wid_y, const double half_wid_z);
 
 // takes the average of each pixel and ouputs the image
 void take_avg(const color_buffer &c_buff, image_buffer &img);

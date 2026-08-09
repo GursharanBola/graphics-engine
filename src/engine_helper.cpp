@@ -66,34 +66,38 @@ engine_helper::get_face(const Eigen::Vector3d &cen_point_on_box,
     const double x = cen_point_on_box.x();
     const double y = cen_point_on_box.y();
     const double z = cen_point_on_box.z();
+    const double inv_len_x = 0.5 / half_wid_x;
+    const double inv_len_y = 0.5 / half_wid_y;
+    const double inv_len_z = 0.5 / half_wid_z;
+
     int face_idx = 0;
     double per_x = 0.0;
     double per_y = 0.0;
 
     if (std::abs(z - half_wid_z) < eps) {
         face_idx = 0;
-        per_x = x;
-        per_y = y;
+        per_x = (x + half_wid_x) * inv_len_x;
+        per_y = (y + half_wid_y) * inv_len_x;
     } else if (std::abs(z + half_wid_z) < eps) {
         face_idx = 1;
-        per_x = x;
-        per_y = y;
+        per_x = (x + half_wid_x) * inv_len_x;
+        per_y = (y + half_wid_y) * inv_len_x;
     } else if (std::abs(y - half_wid_y) < eps) {
         face_idx = 2;
-        per_x = x;
-        per_y = -z;
+        per_x = (x + half_wid_x) * inv_len_x;
+        per_y = (z + half_wid_z) * inv_len_z;
     } else if (std::abs(y + half_wid_y) < eps) {
         face_idx = 3;
-        per_x = x;
-        per_y = z;
+        per_x = (x + half_wid_x) * inv_len_x;
+        per_y = (z + half_wid_z) * inv_len_z;
     } else if (std::abs(x + half_wid_x) < eps) {
         face_idx = 4;
-        per_x = z;
-        per_y = y;
+        per_x = (z + half_wid_z) * inv_len_z;
+        per_y = (y + half_wid_y) * inv_len_x;
     } else {
         face_idx = 5;
-        per_x = -z;
-        per_y = y;
+        per_x = (z + half_wid_z) * inv_len_z;
+        per_y = (y + half_wid_y) * inv_len_x;
     }
     return {face_idx, per_x, per_y};
 }

@@ -484,20 +484,18 @@ Eigen::Vector3d engine::ref_col(const shape &mesh, const Eigen::Vector3d &r_dir,
                                     : (box_min.z() - r_origin.z()) / r_dir.z();
 
         double t_exit = std::min({t_x_exit, t_y_exit, t_z_exit});
+
         Eigen::Vector3d sur = t_exit * r_dir + r_origin - get_origin_of(mesh);
-        auto [face_idx, local_u, local_v] =
+        auto [face_idx, per_x, per_y] =
             engine_helper::get_face(sur, radius, radius, radius);
 
-        const double local_to_per = (local_u + radius) / (2 * radius);
         const int index = scene.mats[m_id].metal_data + face_idx;
         const color_buffer &col_buff = scene.cubemaps[index];
-        int max_val = static_cast<int>(side_len) - 1;
-        int s_pix_x = std::clamp(
-            static_cast<int>(std::floor((local_u * local_to_per) * side_len)),
-            0, max_val);
-        int s_pix_y = std::clamp(
-            static_cast<int>(std::floor((local_v * local_to_per) * side_len)),
-            0, max_val);
+        const int max_val = side_len - 1;
+        const int s_pix_x = std::clamp(
+            static_cast<int>(std::floor(per_x * side_len)), 0, max_val);
+        const int s_pix_y = std::clamp(
+            static_cast<int>(std::floor(per_y * side_len)), 0, max_val);
 
         return col_buff.get(s_pix_x, s_pix_y).val;
     }
