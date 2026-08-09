@@ -59,42 +59,43 @@ engine_helper::create_box(const Eigen::Vector3d &p1, const Eigen::Vector3d &p2,
 }
 
 std::tuple<int, double, double>
-engine_helper::get_face(const Eigen::Vector3d &cntrd_surf_pt,
-                        const double max_xy) {
+engine_helper::get_face(const Eigen::Vector3d &cen_point_on_box,
+                        const double half_wid_x, const double half_wid_y,
+                        const double half_wid_z) {
     const double eps = 1e-4;
-    const double x = cntrd_surf_pt.x();
-    const double y = cntrd_surf_pt.y();
-    const double z = cntrd_surf_pt.z();
+    const double x = cen_point_on_box.x();
+    const double y = cen_point_on_box.y();
+    const double z = cen_point_on_box.z();
     int face_idx = 0;
-    double local_u = 0.0;
-    double local_v = 0.0;
+    double per_x = 0.0;
+    double per_y = 0.0;
 
-    if (std::abs(z - max_xy) < eps) {
+    if (std::abs(z - half_wid_z) < eps) {
         face_idx = 0;
-        local_u = x;
-        local_v = y;
-    } else if (std::abs(z + max_xy) < eps) {
+        per_x = x;
+        per_y = y;
+    } else if (std::abs(z + half_wid_z) < eps) {
         face_idx = 1;
-        local_u = x;
-        local_v = y;
-    } else if (std::abs(y - max_xy) < eps) {
+        per_x = x;
+        per_y = y;
+    } else if (std::abs(y - half_wid_y) < eps) {
         face_idx = 2;
-        local_u = x;
-        local_v = -z;
-    } else if (std::abs(y + max_xy) < eps) {
+        per_x = x;
+        per_y = -z;
+    } else if (std::abs(y + half_wid_y) < eps) {
         face_idx = 3;
-        local_u = x;
-        local_v = z;
-    } else if (std::abs(x + max_xy) < eps) {
+        per_x = x;
+        per_y = z;
+    } else if (std::abs(x + half_wid_x) < eps) {
         face_idx = 4;
-        local_u = z;
-        local_v = y;
+        per_x = z;
+        per_y = y;
     } else {
         face_idx = 5;
-        local_u = -z;
-        local_v = y;
+        per_x = -z;
+        per_y = y;
     }
-    return {face_idx, local_u, local_v};
+    return {face_idx, per_x, per_y};
 }
 
 void engine_helper::take_avg(const color_buffer &color_buff,

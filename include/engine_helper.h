@@ -18,9 +18,12 @@ bound_box<int> create_box(const Eigen::Vector3d &p1, const Eigen::Vector3d &p2,
                           const Eigen::Vector3d &p3, const double aspect_ratio,
                           const int img_length, const int img_width);
 
-// gets [face, local_u, local_v]
+// gets [face, per_x, per_y], per_x and per_y are the percent in the horizontal
+// and vertical directions of the face of the image buffer
 std::tuple<int, double, double> get_face(const Eigen::Vector3d &cntrd_surf_pt,
-                                         const double max_xy);
+                                         const double half_wid_x,
+                                         const double half_wid_y,
+                                         const double half_wid_z);
 
 // takes the average of each pixel and ouputs the image
 void take_avg(const color_buffer &c_buff, image_buffer &img);

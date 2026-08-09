@@ -432,65 +432,63 @@ Eigen::Vector3d engine::ref_col(const shape &mesh, const Eigen::Vector3d &r_dir,
         const double u_norm = q.u_norm;
         const double v_norm = q.v_norm;
 
-        const double width_x = std::abs(box_max.x() - box_min.x());
-        const double width_y = std::abs(box_max.y() - box_min.y());
-        const double width_z = std::abs(box_max.z() - box_min.z());
-        const double max_xy = std::max({width_x, width_y, width_z}) * 0.5;
+        const double half_wid_x = std::abs(box_max.x() - box_min.x()) * 0.5;
+        const double half_wid_y = std::abs(box_max.y() - box_min.y()) * 0.5;
+        const double half_wid_z = std::abs(box_max.z() - box_min.z()) * 0.5;
 
-        const double t_x_exit = (r_dir.x() > 0.0)
+        const double t_x_exit = (r_dir.x() >= 0.0)
                                     ? (box_max.x() - r_origin.x()) / r_dir.x()
                                     : (box_min.x() - r_origin.x()) / r_dir.x();
-        const double t_y_exit = (r_dir.y() > 0.0)
+        const double t_y_exit = (r_dir.y() >= 0.0)
                                     ? (box_max.y() - r_origin.y()) / r_dir.y()
                                     : (box_min.y() - r_origin.y()) / r_dir.y();
-        const double t_z_exit = (r_dir.z() > 0.0)
+        const double t_z_exit = (r_dir.z() >= 0.0)
                                     ? (box_max.z() - r_origin.z()) / r_dir.z()
                                     : (box_min.z() - r_origin.z()) / r_dir.z();
 
         const double t_exit = std::min({t_x_exit, t_y_exit, t_z_exit});
 
+        // center of the bounding box
         const Eigen::Vector3d cen = (box_min + box_max) * 0.5;
-        const Eigen::Vector3d sur = t_exit * r_dir + r_origin - cen;
+        const Eigen::Vector3d cen_point_on_box =
+            t_exit * r_dir + r_origin - cen;
 
-        const auto [face_idx, local_u, local_v] =
-            engine_helper::get_face(sur, max_xy);
+        const auto [face_idx, per_x, per_y] = engine_helper::get_face(
+            cen_point_on_box, half_wid_x, half_wid_y, half_wid_z);
 
         const int index = scene.mats[m_id].metal_data + face_idx;
         const color_buffer &col_buff = scene.cubemaps[index];
 
-        const double u_per = (local_u + max_xy) / (max_xy) * 0.5;
-        const double v_per = (local_v + max_xy) / (max_xy) * 0.5;
         const int max_val = side_len - 1;
         const int s_pix_x = std::clamp(
-            static_cast<int>(std::floor(u_per * side_len)), 0, max_val);
+            static_cast<int>(std::floor(per_x * side_len)), 0, max_val);
         const int s_pix_y = std::clamp(
-            static_cast<int>(std::floor(v_per * side_len)), 0, max_val);
+            static_cast<int>(std::floor(per_y * side_len)), 0, max_val);
 
         return col_buff.get(s_pix_x, s_pix_y).val;
-
     } else {
         const sphere &s = std::get<sphere>(mesh);
         const Eigen::Vector3d &s_origin = s.get_origin();
-        const double max_xy = s.get_radius();
+        const double radius = s.get_radius();
         const Eigen::Vector3d box_min = s.b_cube[0];
         const Eigen::Vector3d box_max = s.b_cube[1];
 
-        const double t_x_exit = (r_dir.x() > 0.0)
+        const double t_x_exit = (r_dir.x() >= 0.0)
                                     ? (box_max.x() - r_origin.x()) / r_dir.x()
                                     : (box_min.x() - r_origin.x()) / r_dir.x();
-        const double t_y_exit = (r_dir.y() > 0.0)
+        const double t_y_exit = (r_dir.y() >= 0.0)
                                     ? (box_max.y() - r_origin.y()) / r_dir.y()
                                     : (box_min.y() - r_origin.y()) / r_dir.y();
-        const double t_z_exit = (r_dir.z() > 0.0)
+        const double t_z_exit = (r_dir.z() >= 0.0)
                                     ? (box_max.z() - r_origin.z()) / r_dir.z()
                                     : (box_min.z() - r_origin.z()) / r_dir.z();
 
         double t_exit = std::min({t_x_exit, t_y_exit, t_z_exit});
         Eigen::Vector3d sur = t_exit * r_dir + r_origin - get_origin_of(mesh);
         auto [face_idx, local_u, local_v] =
-            engine_helper::get_face(sur, max_xy);
+            engine_helper::get_face(sur, radius, radius, radius);
 
-        const double local_to_per = (local_u + max_xy) / (2 * max_xy);
+        const double local_to_per = (local_u + radius) / (2 * radius);
         const int index = scene.mats[m_id].metal_data + face_idx;
         const color_buffer &col_buff = scene.cubemaps[index];
         int max_val = static_cast<int>(side_len) - 1;

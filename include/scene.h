@@ -15,14 +15,11 @@
  */
 
 /*
- makes a cubemap for any mesh with a volume. Cubemaps look like:
- [front, back, top, bot, left, right] w/ front being -cam_w, top being
- cam_v, and right being cam_u.
- note -cam_w is right, cam_v is up, cam_u is out of page
+ Cubemaps look like: [front, back, top, bot, left, right]
+ w/ right is cam_u, up is cam_v, and front / out of the screen is cam_w
 */
 
-// TODO: don't scale the buffer sizes, add a sky box feature (only one cubemap)
-// and user has to upload a skybox, all metal objects sample this instead
+// TODO: quads will not use cubes for reflections
 
 class scene {
   private:
@@ -67,11 +64,9 @@ class scene {
         if (mat.is_metal) {
             mat.metal_data = cubemaps.size();
             const int side_len = consts::MAP_SIDE_LEN;
-            for (int i = 0; i < 6; ++i) {
-                cubemaps.emplace_back(color_buffer{side_len, side_len, 1});
-                cubemaps_z.emplace_back(z_buffer{side_len, side_len, 1});
-                cubemaps_s.emplace_back(seen_buffer{side_len, side_len, 1});
-            }
+            cubemaps.emplace_back(color_buffer{side_len, side_len, 1});
+            cubemaps_z.emplace_back(z_buffer{side_len, side_len, 1});
+            cubemaps_s.emplace_back(seen_buffer{side_len, side_len, 1});
         }
         mats.emplace_back(std::move(mat));
         meshes.emplace_back(
