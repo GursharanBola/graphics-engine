@@ -21,8 +21,6 @@
  * the page
  */
 
-// TODO: quads will not use cubes for reflections
-
 class scene {
   private:
     int img_length;
@@ -66,9 +64,11 @@ class scene {
         if (mat.is_metal) {
             mat.metal_data = cubemaps.size();
             const int side_len = consts::MAP_SIDE_LEN;
-            cubemaps.emplace_back(color_buffer{side_len, side_len, 1});
-            cubemaps_z.emplace_back(z_buffer{side_len, side_len, 1});
-            cubemaps_s.emplace_back(seen_buffer{side_len, side_len, 1});
+            for (int i = 0; i < 6; ++i) {
+                cubemaps.emplace_back(color_buffer{side_len, side_len, 1});
+                cubemaps_z.emplace_back(z_buffer{side_len, side_len, 1});
+                cubemaps_s.emplace_back(seen_buffer{side_len, side_len, 1});
+            }
         }
         mats.emplace_back(std::move(mat));
         meshes.emplace_back(

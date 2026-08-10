@@ -2,53 +2,53 @@
 
 ** Data and Buffers
 *** Z-buffer 
-Z-buffers will store z information about how far away the closest triangle at the *subpixel* level that means if there are 500 samples per-pixel, then the program must have z-buffer the same size as image_n x image_m x num_samples. All lighting and cameras will be given z-buffers with respect to their own coordinate systems, cam_u, cam_v, and cam_w, defined as being the camera/light's right (x), up (y), and backward (z) directions and the where the light / camera is placed within the scene.
-
-*** Vertex Buffer 
-A Vertex buffer will store all vertex information in a large std::vector if a user desires to access information the each vector will have a ID; this ID is simply it's index in the std::vector. This buffer avoids duplication of triangle information. The vertex buffer will also store where the vector gets projected to on the camera plane and the normal vector at this point.
+Z-buffers will store z information about how far away the closest triangle at the *subpixel* level that means if there are 500 samples per-pixel, then the program must have z-buffer the same size as image_n x image_m x num_samples. All lighting and cameras are given z-buffers with respect to their own coordinate systems, cam_u, cam_v, and cam_w, defined as being the camera/light's right (x), up (y), and backward (z) directions and the where the light / camera  placed within the scene.
 
 *** Image Buffer
-Image Buffers will be assigned to the Camera itself. Although lighting objects act as *psuedo* cameras, to tell the program what the light can see and thus how to render the surface, there is no need to output what the light actually sees hence do not need a Image Buffer. Note that the image buffer will store the final colors of the scene it is what the user will eventually actually see.
+Image Buffers  assigned to the Camera itself. Although lighting objects act as projectors to tell the program what the light can see and thus how to render the surface, there is no need to output what the light actually sees hence do not need a Image Buffer. Note that the image buffer will store the final colors of the scene it is what the user will eventually actually see.
 
 *** Seen Buffer
-If a triangle is seen in the final image, the program will store the triangle's mesh-ID and the Seen-ID which is the index in the Mesh's array that stores the information for that triangle. It is important to note that seen-buffer should exist at the sub-pixel level despite shading being done at pixel level. This is because the seen-buffer plays double duty for anti-aliasing, it just so happens shading is expensive so requires more approximation.
+If a triangle seen in the final image, the program will store the triangle's mesh-ID and the Seen-ID which is the index in the mesh's array that stores the information for that triangle. It is important to note that seen-buffer should exist at the sub-pixel level despite shading done at pixel level. This is because the seen-buffer plays double duty for anti-aliasing, it just so happens shading is expensive so requires more approximation.
+
+*** Color Buffer
+Stores the color at each sub-pixel, again this uses a lot of memory but this keeps the program quickly instead of trying to compress the colors into a dictionary that the program has to keep fetching.
+
+*** Cubemaps
+The program does support cube mapped reflections for quads and spheres. This is so that the program in the long term can support video rendering if someone comes later and decides to implement it (it isn't really my intention).
+Note that cubemaps are not really anything special just z, s, and color buffers with 1 sqrt_sample.
 
 ** Meshes
-These objects will store a uint8/16_t mesh-ID, the Eigen::Vector3d color, a pointer to a Material, and a std::vector list_of_triangles which will house vertex IDs in groups of 3 for the vertices of a triangle. In the main rendering loop when preforming sub-pixel sampling, the program will pass in the mesh-ID. Much like the vertex-ID the mesh-ID will be an index to an array of Meshes within a Scene.
+These objects will store a uint8/16_t mesh-ID, a material, and a std::vector list_of_triangles which will store the triangle data for each triangle, this duplicates information but should be quick. In the main rendering loop when preforming sub-pixel sampling, the program will pass in the mesh-ID. Much like the vertex-ID the mesh-ID will be an index to an array of Meshes within a Scene.
 
-For Phong shading the program needs a way to get the surface normals so all meshes will inherit a function called find_normals_at().
+For Phong shading the program needs a way to get the surface normals so all meshes will "inherit" a function called find_normals_at().
 
 All meshes at will inherit a function build() which will take in a parameter sample rate. These functions will run at compile time and write to a vertex buffer with all the vertices, their normal fill in the std::vector list_of_triangles, and the normals at each vertex in the vertex buffer by calling the function find_normals_at().
 
-In the case for this project, the test surface will be a UV mesh of a sphere as well as quads. Once all meshes are drawn, the list of triangles are marked read-only.
+In the case for this project, the test surface will be a UV mesh of a sphere as well as quads. Once all meshes are drawn, the list of triangles are "marked" read-only.
+
+** Projectors
+Projectors include cameras and lights, these are POD objects storing the coordinates and cam_u, cam_v, and cam_w of the object.
 
 ** Scene
 Stores a list of all meshes / lights inside of a scene. The mesh_id is defined as the index in the scene_buffer's std::vector. The scene will also store all Z-buffers,  Vertex Buffer, Seen Buffers, and Image Buffers. This means that Scenes must be able to take in the size of the images, render, and support adding meshes and lights. Some of Scene's functions will be wrappers; for example Scene's render() will be a wrapper for camera's render() class.
 
 Also note there are multiple for Z-buffers, there exists multiple per scene since there may exist more than one light source.
 
-** Lights
-Like mentioned lights are much like cameras except for the fact that they do not have image buffers but will have z-buffers and seen-buffers. These determine what the camera can see which will used in shading the scene after coloring.
-
 ** Materials
-All materials will take in a normal vector to the plane and the location of a light and determine the color as if there are no obstructions between this plane and the light source. This function will be called bounce(), to mimic how it emulates how light bounces of different surfaces.
+Materials will store all of the material properties and the color of a mesh plus any meta data about where to find data for the object like where it's cube map lies.
 
-For now only glossy objects are going to supported by this project, the Phong shading algorithm has a formula for this that handles the coloring nicely for this application.
+** Rendering Engine
+The rendering engine will populate the visibility and depth buffers first then use this information to calculate the colors of each sub-pixel one at a time. This is obviously oversimplified but for details reading the headerfiles will help out a great deal since the code's written plainly.
 
-** Camera 
+The main way that this engine really becomes interesting are int the optimizations that it can make. The largest of these will be the ability of a lock free way to render over a smaller square portion of a scene. This is achieved  with a pre-process step which determines which triangles and meshes are visible from each region and since the color buffer and populating depth and visibility buffers are independent of buffer size, each thread can render the scene for it's specific tile. The reason this is a great optimization  is that it opens the possibility to start rendering while the visibility and depth buffers are still being populated. Importantly the data structure that manages these tasks is simple and quick.
 
-The camera will  render(), color() and render_mesh() and store the camera center, cam_u, cam_v, and cam_w.
+On the geometry side the program will use furstrum culling and backface fulling. Furstrum culling simply culls from the mesh list all meshes not visible / behind the camera. Backface culling does the same, but this time for triangles that are behind convex objects. The program can also find cheap ways to calculate the barycentric coordinates if it has been already been calculated once.
 
-render() is wrapper for the render_mesh() function, it adds additional logic to ensure that the finalized colors that are written to the image buffer are correct. render() will iterate through all of meshes and call render_mesh() on the image buffer.
+One final optimization that you will not see in this project is actually an alien idea which is instead of tiling a large buffer which will create cache misses when moving down the matrix you can reorganize the data to be in tiles from default.
+Memory is in row major order. We can preserve this row major order for *tiles* and then store these *tiles* in row major order. This will reduce cache misses for threads when they finally get to doing their thread's specific task. But like I mentioned this is an alien idea but interesting if someone would like to implement it.
 
-render_mesh() will create a small tile of size n_pixels * n_pixels * num_samples so that the program can work a smaller space that will stay within the L1 cache of the system. This is just cache blocking for the z-buffer. This tile will tile the bounding box created for each triangle. A similar tile will exist for the seen-buffer.
-
-Mathematically the method will iterate through all the triangles within a given mesh and convert the vertices on the triangle from the standard basis to the camera basis. render_mesh() will then create a bounding box for the tile to reference when pulling in information from the z-buffer and seen-buffer. The program will then use barycentric coordinates and the z values at the corners of the triangle to interpolate the z-values at the sub-pixels  interior of the triangle. Then for each sub-pixel in the bounding box check if the point is on the inside of the triangle. If the sub-pixel has a z value that is closer than what is currently in the z-buffer it should update the z-buffer and seen-buffer's seen-id and mesh for that sub-pixel. Once each tile is filled write back all of the information back to the large z-buffer and seen-buffer. render_mesh() should be called on all meshes before coloring the scene.
-
-The function color() well go pixel by pixel to determine the color. The program will analyze the seen-buffer and tally the number of each seen-id, this will be used later to average the colors. The program will then use barycentric coordinates to interpolate the normal at the center of the pixel (*not* subpixel) then run the material bounce() function to return a color for that triangle as if there is *not* in shadow. The program does this for all the triangles that are visible inside of that pixel and updates the colors for each one.
-
-To determine the shading the program will go through the seen-buffer of the camera and sample some amount of pixels around the center: Eigen::Vector3d(pixel_i_mid, pixel_j_mid, z-buffer). If all the seen-id and mesh-id are the same then the program can safely use the center of the camera to shade the entire pixel. If the samples differ then the program cannot simply use the center, instead the program will use the coordinates of the samples who's seen-ids differ. The program will then project these points / point onto all of the light's seen-buffers and check if the pixel it hits has the same seen-id and mesh-id.
-
-Depending on the path that it took (only using the center vs. using multiple samples) the program will just return the average color using the counts multiplied by a shading factor (first simpler case), or return the average of the color after each triangle's color is shaded individually (more complicated case).
+A more complete list of what is actually going to be implemented can be seen in engine.cpp (kind of in a bad spot but that is where I keep a TODO list of items I need to do!)
 
 I would like to note that if you would like to see a more memory efficient approach (storing hundreds of mesh-id is obviously inefficient) you may look at commit 0964017. This approach was made so that the program could render as quickly as possible.
+
+Thanks for reading I hope you find it interesting!!!

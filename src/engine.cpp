@@ -25,13 +25,12 @@
 // TODO: Use as many Eigen functions to speed up the math using SIMD converting
 // to matrix math will probably yeild benefits
 
-// TODO: struct triangle should cache the normals of each triangle to avoid
-// recalculating it
+// TODO: struct triangle should cache the normals of each triangle and bounding
+// boxes of each triangle to avoid recalculation
 
-// TODO: for each (z_buffer, s_buffer, color_buffer) tuple
-
-// TODO: in engine::color_buffs() make a simple cache that stores the last
-// triangle's data to avoid looking back up and recalculating it
+// TODO: A quicker alternative could be in engine::color_buffs() make a simple
+// cache that stores the last triangle's data to avoid looking it back up or
+// recalculating it (this can be done in the mesh's build step)
 
 // TODO: The engine_helper::rast_tri and engine::color_buffs() <-(prob not)
 // may be able to be further optimized by avoiding having to recompute
