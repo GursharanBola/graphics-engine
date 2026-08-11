@@ -1,8 +1,8 @@
 #include "buffer.h"
 #include <tuple>
 
-// project a point and correct for depth
 namespace engine_helper {
+// project a point and correct for depth
 Eigen::Vector3d
 project_point(const Eigen::Vector3d &p1, const Eigen::Vector3d &cam_u,
               const Eigen::Vector3d &cam_v, const Eigen::Vector3d &cam_w,
@@ -48,12 +48,16 @@ double edge_func(const Eigen::Vector3d &a, const Eigen::Vector3d &b,
 // then the area is negative and will return Eigen::Vector3d{-1,-1,-1}
 Eigen::Vector3d get_bary(const Eigen::Vector3d &p1, const Eigen::Vector3d &p2,
                          const Eigen::Vector3d &p3,
-                         const Eigen::Vector3d &test_pt);
+                         const Eigen::Vector3d &test_pt, const double inv_area);
 
 // run a job directly on threads, is thread safe, b_box can be a thread box
 template <typename Func, typename buff_T, typename arg_T>
 void with_buff(Func &&job, const bound_box<int> &b_box, buff_T &&buffs,
                arg_T &&args);
+
+// with buff allows you run any job on each subpixel of a buffer
+// the user has to specificy the buffers, args, and function to use
+// this function
 
 // args needed for ras_tri_fn
 template <typename T> struct ra_tri_args {

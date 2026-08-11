@@ -12,7 +12,7 @@ Eigen::Vector3d engine_helper::project_point(const Eigen::Vector3d &p1,
     double y_cam = translated.dot(cam_v);
     double z_cam = translated.dot(cam_w);
     if (std::abs(z_cam) < 1e-6) {
-        z_cam = 1e-6;
+        z_cam = (z_cam < 0.0) ? -1e-6 : 1e-6;
     }
     double ratio = focal_len / z_cam;
     return Eigen::Vector3d(x_cam * ratio, y_cam * ratio, z_cam);
@@ -66,6 +66,7 @@ engine_helper::get_face(const Eigen::Vector3d &cen_point_on_box,
     const double x = cen_point_on_box.x();
     const double y = cen_point_on_box.y();
     const double z = cen_point_on_box.z();
+
     const double inv_len_x = 0.5 / half_wid_x;
     const double inv_len_y = 0.5 / half_wid_y;
     const double inv_len_z = 0.5 / half_wid_z;
@@ -74,18 +75,19 @@ engine_helper::get_face(const Eigen::Vector3d &cen_point_on_box,
     double per_x = 0.0;
     double per_y = 0.0;
 
+    // Cubemap array: [front, back, top, bot, left, right]
     if (std::abs(z - half_wid_z) < eps) {
         face_idx = 0;
         per_x = (x + half_wid_x) * inv_len_x;
-        per_y = (y + half_wid_y) * inv_len_x;
+        per_y = (y + half_wid_y) * inv_len_y;
     } else if (std::abs(z + half_wid_z) < eps) {
         face_idx = 1;
-        per_x = (x + half_wid_x) * inv_len_x;
-        per_y = (y + half_wid_y) * inv_len_x;
+        per_x = (half_wid_x - x) * inv_len_x;
+        per_y = (y + half_wid_y) * inv_len_y;
     } else if (std::abs(y - half_wid_y) < eps) {
         face_idx = 2;
         per_x = (x + half_wid_x) * inv_len_x;
-        per_y = (z + half_wid_z) * inv_len_z;
+        per_y = (half_wid_z - z) * inv_len_z;
     } else if (std::abs(y + half_wid_y) < eps) {
         face_idx = 3;
         per_x = (x + half_wid_x) * inv_len_x;
@@ -93,21 +95,23 @@ engine_helper::get_face(const Eigen::Vector3d &cen_point_on_box,
     } else if (std::abs(x + half_wid_x) < eps) {
         face_idx = 4;
         per_x = (z + half_wid_z) * inv_len_z;
-        per_y = (y + half_wid_y) * inv_len_x;
+        per_y = (y + half_wid_y) * inv_len_y;
     } else {
         face_idx = 5;
-        per_x = (z + half_wid_z) * inv_len_z;
-        per_y = (y + half_wid_y) * inv_len_x;
+        per_x = (half_wid_z - z) * inv_len_z;
+        per_y = (y + half_wid_y) * inv_len_y;
     }
-    return {face_idx, per_x, per_y};
+
+    return {face_idx, std::clamp(per_x, 0.0, 1.0), std::clamp(per_y, 0.0, 1.0)};
 }
 
 void engine_helper::take_avg(const color_buffer &color_buff,
                              image_buffer &img) {
     const int sqrt_samples = color_buff.get_sqrt_samples();
-    const int inv_samples = 1 / (sqrt_samples * sqrt_samples);
     const int img_length = color_buff.get_length_p();
     const int img_height = color_buff.get_width_p();
+    const double inv_samples = 1.0 / (sqrt_samples * sqrt_samples);
+
     std::vector<Eigen::Vector3d> run_tot(img_length);
     int img_height_s = img_height * sqrt_samples;
     int img_length_s = img_length * sqrt_samples;
@@ -160,22 +164,17 @@ double engine_helper::edge_func(const Eigen::Vector3d &a,
 Eigen::Vector3d engine_helper::get_bary(const Eigen::Vector3d &p1,
                                         const Eigen::Vector3d &p2,
                                         const Eigen::Vector3d &p3,
-                                        const Eigen::Vector3d &test_pt) {
-    double area = edge_func(p1, p2, p3);
-    // backface cull
-    if (area < 0) {
-        return {-1.0, -1.0, -1.0};
-    }
-    if (std::abs(area) < 1e-9) {
-        return {-1.0, -1.0, -1.0};
-    }
+                                        const Eigen::Vector3d &test_pt,
+                                        const double inv_area) {
+
     double w1 = edge_func(p2, p3, test_pt);
     double w2 = edge_func(p3, p1, test_pt);
     double w3 = edge_func(p1, p2, test_pt);
-    double inv_area = 1.0 / area;
+
     double b1 = w1 * inv_area;
     double b2 = w2 * inv_area;
     double b3 = w3 * inv_area;
+
     if (b1 >= 0.0 && b2 >= 0.0 && b3 >= 0.0) {
         return {b1, b2, b3};
     }
@@ -192,6 +191,13 @@ void with_buff(Func &&job, const bound_box<int> &b_box, buff_T &&buffs,
 template <typename T>
 void engine_helper::rast_tri(const bound_box<int> &b_box,
                              ra_tri_buffs<T> &buffs, ra_tri_args<T> &args) {
+    const triangle &p_tri = args.p_tri;
+    double area = edge_func(p_tri.point1, p_tri.point2, p_tri.point3);
+    if (area <= 1e-9) {
+        return; // backface culling
+    }
+
+    const double inv_area = 1.0 / area;
     const int paren_len = args.paren_len; // in sub_pixels
     const int paren_wid = args.paren_wid; // in sub_pixels
     const int buf_w = buffs.buff.get_length_p();
@@ -206,14 +212,14 @@ void engine_helper::rast_tri(const bound_box<int> &b_box,
 
     const double s_pix_to_world_x = 2.0 * a_ratio / paren_len;
     const double s_pix_to_world_y = 2.0 / paren_wid;
-    const triangle &p_tri = args.p_tri;
     const double p1_z = p_tri.point1[2];
     const double p2_z = p_tri.point2[2];
     const double p3_z = p_tri.point3[2];
     const double near_plane = 0.1;
     if (p1_z < near_plane || p2_z < near_plane || p3_z < near_plane) {
-        return;
+        return; // near plane rejection
     }
+
     const double inv_p1_z = 1.0 / p1_z;
     const double inv_p2_z = 1.0 / p2_z;
     const double inv_p3_z = 1.0 / p3_z;
@@ -226,8 +232,8 @@ void engine_helper::rast_tri(const bound_box<int> &b_box,
         for (int k = left; k < right;
              ++k, world_x += s_pix_to_world_x, ++mem_idx) {
             Eigen::Vector3d test{world_x, world_y, 0};
-            Eigen::Vector3d bary =
-                get_bary(p_tri.point1, p_tri.point2, p_tri.point3, test);
+            Eigen::Vector3d bary = get_bary(p_tri.point1, p_tri.point2,
+                                            p_tri.point3, test, inv_area);
             if (bary[0] < 0.0 || bary[1] < 0.0 || bary[2] < 0.0) {
                 continue;
             }
