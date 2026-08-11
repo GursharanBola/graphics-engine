@@ -31,8 +31,7 @@ class scene {
 
   public:
     scene(const int img_length, const int img_height, const int num_channels,
-          const int sqrt_samples, const color l_color,
-          const color &ambient_color)
+          const int sqrt_samples, const color &ambient_color)
         : img_length(img_length), img_height(img_height),
           num_channels(num_channels), sqrt_samples(sqrt_samples),
           img(img_length, img_height, num_channels),
@@ -42,8 +41,7 @@ class scene {
           ambient_color(ambient_color) {};
 
     void add_sphere(const Eigen::Vector3d &center, const double radius,
-                    const color &mesh_color, material mat,
-                    const int num_samples) {
+                    material mat, const int num_samples) {
         if (mat.is_metal) {
             mat.metal_data = cubemaps.size();
             const int side_len = consts::MAP_SIDE_LEN;
@@ -59,8 +57,7 @@ class scene {
     }
 
     void add_quad(const Eigen::Vector3d &origin, const Eigen::Vector3d &u,
-                  const Eigen::Vector3d &v, const color &mesh_color,
-                  material mat) {
+                  const Eigen::Vector3d &v, material mat) {
         if (mat.is_metal) {
             mat.metal_data = cubemaps.size();
             const int side_len = consts::MAP_SIDE_LEN;
@@ -87,6 +84,11 @@ class scene {
     void clear_scene() {
         meshes.clear();
         lights.clear();
+        mats.clear();
+        cubemaps.clear();
+        cubemaps_z.clear();
+        cubemaps_s.clear();
+        list_of_tri.clear();
         z_buffer_cam.clear();
         s_buffer_cam.clear();
         img.clear();

@@ -62,10 +62,10 @@ class quad : public mesh {
         const double max_u = u.cwiseAbs().maxCoeff();
         const double max_v = v.cwiseAbs().maxCoeff();
         const double eps = 1e-6;
-        if (u.squaredNorm() - max_u * max_u < eps) {
+        if (u.squaredNorm() - max_u * max_u > eps) {
             throw std::runtime_error("u and v have to be axis aligned");
         }
-        if (v.squaredNorm() - max_v * max_v < eps) {
+        if (v.squaredNorm() - max_v * max_v > eps) {
             throw std::runtime_error("u and v have to be axis aligned");
         }
         build(list_of_tri);
@@ -93,27 +93,16 @@ using shape = std::variant<sphere, quad>;
 
 inline Eigen::Vector3d find_normal_at(const shape &s,
                                       const Eigen::Vector3d &point) {
-    if (std::holds_alternative<sphere>(s)) {
-        return std::get<sphere>(s).find_normal(point);
-    } else {
-        return std::get<quad>(s).find_normal(point);
-    }
+    return std::visit(
+        [&point](const auto &obj) { return obj.find_normal(point); }, s);
 }
 
 inline Eigen::Vector3d get_origin_of(const shape &s) {
-    if (std::holds_alternative<sphere>(s)) {
-        return std::get<sphere>(s).get_origin();
-    } else {
-        return std::get<quad>(s).get_origin();
-    }
+    return std::visit([](const auto &obj) { return obj.get_origin(); }, s);
 }
 
 inline int get_id(const shape &s) {
-    if (std::holds_alternative<sphere>(s)) {
-        return std::get<sphere>(s).get_id();
-    } else {
-        return std::get<quad>(s).get_id();
-    }
+    return std::visit([](const auto &obj) { return obj.get_id(); }, s);
 }
 
 #endif

@@ -5,34 +5,35 @@
 Z-buffers will store z information about how far away the closest triangle at the *subpixel* level that means if there are 500 samples per-pixel, then the program must have z-buffer the same size as image_n x image_m x num_samples. All lighting and cameras are given z-buffers with respect to their own coordinate systems, cam_u, cam_v, and cam_w, defined as being the camera/light's right (x), up (y), and backward (z) directions and the where the light / camera  placed within the scene.
 
 *** Image Buffer
-Image Buffers  assigned to the Camera itself. Although lighting objects act as projectors to tell the program what the light can see and thus how to render the surface, there is no need to output what the light actually sees hence do not need a Image Buffer. Note that the image buffer will store the final colors of the scene it is what the user will eventually actually see.
+Image buffer is what is going is the buffer that is going to be rendered by the stbimage library. Only the scene's camera uses this type of buffer.
 
 *** Seen Buffer
-If a triangle seen in the final image, the program will store the triangle's mesh-ID and the Seen-ID which is the index in the mesh's array that stores the information for that triangle. It is important to note that seen-buffer should exist at the sub-pixel level despite shading done at pixel level. This is because the seen-buffer plays double duty for anti-aliasing, it just so happens shading is expensive so requires more approximation.
+The seen buffer stores the tri_ref, which stores it's the mesh_id and tri_index of the triangle in memory this is used later to quickly search for that triangles information in memory.
 
 *** Color Buffer
-Stores the color at each sub-pixel, again this uses a lot of memory but this keeps the program quickly instead of trying to compress the colors into a dictionary that the program has to keep fetching.
+Stores the color at each sub-pixel, again this uses a lot of memory but this keeps the program quickly instead of trying to compress the colors into a dictionary and keep fetching information out of it.
 
 *** Cubemaps
-The program does support cube mapped reflections for quads and spheres. This is so that the program in the long term can support video rendering if someone comes later and decides to implement it (it isn't really my intention).
-Note that cubemaps are not really anything special just z, s, and color buffers with 1 sqrt_sample.
+The engine does support cube mapped reflections for quads and spheres. This is so that the program in the long term can support video rendering if someone comes later and decides to implement it (it isn't really my intention).
+
+Note that cubemaps are not really anything special just z, s, and color buffers with only one antialiasing sample and always a cube in memory to save on rendering speed.
+
+** Scene
+Stores a list of all meshes / lights inside of a scene. The mesh_id is defined as the index in the scene_buffer's std::vector. The scene will also store all Z-buffers, Seen Buffers, Image Buffers, Triangles, and Materials. This means that Scenes must be able to take in the size of the images, render, and support adding meshes and lights.
+
+Also note there are multiple for Z-buffers, there exists multiple per scene since there may exist more than one light source.
 
 ** Meshes
-These objects will store a uint8/16_t mesh-ID, a material, and a std::vector list_of_triangles which will store the triangle data for each triangle, this duplicates information but should be quick. In the main rendering loop when preforming sub-pixel sampling, the program will pass in the mesh-ID. Much like the vertex-ID the mesh-ID will be an index to an array of Meshes within a Scene.
+Meshes will store the bounding box and basic geometric information about a mesh.
 
 For Phong shading the program needs a way to get the surface normals so all meshes will "inherit" a function called find_normals_at().
 
-All meshes at will inherit a function build() which will take in a parameter sample rate. These functions will run at compile time and write to a vertex buffer with all the vertices, their normal fill in the std::vector list_of_triangles, and the normals at each vertex in the vertex buffer by calling the function find_normals_at().
+All meshes at will inherit a function build() which will take in a parameter sample rate which will construct this object's vertices and place them into a list_of_tris. Quads however will not considering they are simpler objects.
 
-In the case for this project, the test surface will be a UV mesh of a sphere as well as quads. Once all meshes are drawn, the list of triangles are "marked" read-only.
+In the case for this project, the test surface will be a UV mesh of a sphere and quads.
 
 ** Projectors
 Projectors include cameras and lights, these are POD objects storing the coordinates and cam_u, cam_v, and cam_w of the object.
-
-** Scene
-Stores a list of all meshes / lights inside of a scene. The mesh_id is defined as the index in the scene_buffer's std::vector. The scene will also store all Z-buffers,  Vertex Buffer, Seen Buffers, and Image Buffers. This means that Scenes must be able to take in the size of the images, render, and support adding meshes and lights. Some of Scene's functions will be wrappers; for example Scene's render() will be a wrapper for camera's render() class.
-
-Also note there are multiple for Z-buffers, there exists multiple per scene since there may exist more than one light source.
 
 ** Materials
 Materials will store all of the material properties and the color of a mesh plus any meta data about where to find data for the object like where it's cube map lies.
@@ -40,14 +41,13 @@ Materials will store all of the material properties and the color of a mesh plus
 ** Rendering Engine
 The rendering engine will populate the visibility and depth buffers first then use this information to calculate the colors of each sub-pixel one at a time. This is obviously oversimplified but for details reading the headerfiles will help out a great deal since the code's written plainly.
 
-The main way that this engine really becomes interesting are int the optimizations that it can make. The largest of these will be the ability of a lock free way to render over a smaller square portion of a scene. This is achieved  with a pre-process step which determines which triangles and meshes are visible from each region and since the color buffer and populating depth and visibility buffers are independent of buffer size, each thread can render the scene for it's specific tile. The reason this is a great optimization  is that it opens the possibility to start rendering while the visibility and depth buffers are still being populated. Importantly the data structure that manages these tasks is simple and quick.
+The main way that this engine really becomes interesting are int the optimizations that it can make. The largest of these will be the ability of a lock free way to render over a smaller square portion of a scene. This is achieved  with a pre-process step which determines which triangles and meshes are visible from each region and since the color buffer and populating depth and visibility buffers are independent of buffer size, each thread can render the scene for it's specific tile. The reason this is a great optimization  is that it opens the possibility to start rendering while the visibility and depth buffers are still being populated. Importantly the data structure that manages these jobs is simple and requires short atomic operations.
 
 On the geometry side the program will use furstrum culling and backface fulling. Furstrum culling simply culls from the mesh list all meshes not visible / behind the camera. Backface culling does the same, but this time for triangles that are behind convex objects. The program can also find cheap ways to calculate the barycentric coordinates if it has been already been calculated once.
 
-One final optimization that you will not see in this project is actually an alien idea which is instead of tiling a large buffer which will create cache misses when moving down the matrix you can reorganize the data to be in tiles from default.
-Memory is in row major order. We can preserve this row major order for *tiles* and then store these *tiles* in row major order. This will reduce cache misses for threads when they finally get to doing their thread's specific task. But like I mentioned this is an alien idea but interesting if someone would like to implement it.
+One final alien optimization is to optimize the way that the program accesses memory. Say that the program desires to move down on a 2d matrix, since 2d matrices are stored in row major order this operation creates cache misses. Since the program will eventually break the problem into square tiles, why not store these tiles as flattened arrays? This means you store these the *inside* of these tiles in row major and then store each *tile* in row major order. This will decrease the number of cache missed but is a harder optimization to make.
 
-A more complete list of what is actually going to be implemented can be seen in engine.cpp (kind of in a bad spot but that is where I keep a TODO list of items I need to do!)
+A more complete list of what is actually going to be implemented can be seen in engine.cpp. Admittedly this is a bad place to put it but is what I look at when I am developing, it will be moved to this design document once completed!
 
 I would like to note that if you would like to see a more memory efficient approach (storing hundreds of mesh-id is obviously inefficient) you may look at commit 0964017. This approach was made so that the program could render as quickly as possible.
 

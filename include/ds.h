@@ -1,10 +1,10 @@
 #ifndef DS_H
 #define DS_H
 
+#include <stdexcept>
 #include <vector>
 
-// efficient cache map, astores tri_refs densely to avoid cache misses
-// also optimizes iteration order by sorting
+// efficient cache map, stores data densely to avoid cache misses
 
 // counts_in is the max number of triangles in each mesh
 namespace ds {
@@ -27,6 +27,12 @@ template <typename T> struct e_cache_map {
     }
     T &claim_next_slot(const int m_id) {
         int current_index = offsets[m_id];
+        int max_index = (m_id == static_cast<int>(initial.size()) - 1)
+                            ? data.size()
+                            : initial[m_id + 1];
+        if (current_index >= max_index) {
+            throw std::runtime_error("Claim out of bounds!");
+        }
         offsets[m_id]++;
         return data[current_index];
     }
@@ -34,8 +40,9 @@ template <typename T> struct e_cache_map {
     // only works if user knows how data is added
     // to the data structure
     const T &get(const int m_id, const int index) const {
-        assert(index >= 0 && index < mesh_size(m_id) &&
-               "Triangle index out of bounds!");
+        if (index >= 0 || index < mesh_size(m_id)) {
+            throw std::runtime_error("Triangle index out of bounds!");
+        }
         int global_index = initial[m_id] + index;
         return data[global_index];
     }
@@ -45,8 +52,12 @@ template <typename T> struct e_cache_map {
         initial.push_back(n_open);
         data.resize(data.size() + size);
     }
-    void clear() { offsets = initial; }
-    int num_meshes() { return initial.size(); }
+    void clear() {
+        data.clear();
+        initial.clear();
+        offsets.clear();
+    }
+    int num_meshes() const { return initial.size(); }
     int mesh_size(const int m_id) const {
         if (m_id < 0 || m_id >= static_cast<int>(initial.size())) {
             return 0;

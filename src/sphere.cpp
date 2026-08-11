@@ -9,14 +9,16 @@ void sphere::build(ds::e_cache_map<triangle> &list_of_tri) {
     double ring_y = radius * std::cos(delta_phi);
     double ring_rad_y = radius * std::sin(delta_phi);
     Eigen::Vector3d bot_prev(ring_rad_y * 1.0, ring_y, ring_rad_y * 0.0);
+
     for (int i = 1; i <= num_samples; ++i) {
         double c_theta = delta_theta * i;
         Eigen::Vector3d bot_curr(ring_rad_y * std::cos(c_theta), ring_y,
                                  ring_rad_y * std::sin(c_theta));
         triangle &tri = list_of_tri.claim_next_slot(mesh_id);
-        tri = triangle{top + center, bot_prev + center, bot_curr + center};
+        tri = triangle{top + center, bot_curr + center, bot_prev + center};
         bot_prev = bot_curr;
     }
+
     for (int i = 1; i < num_samples - 1; ++i) {
         const double top_y = radius * std::cos(i * delta_phi);
         const double top_rad = radius * std::sin(i * delta_phi);
@@ -35,23 +37,26 @@ void sphere::build(ds::e_cache_map<triangle> &list_of_tri) {
                                          bot_rad * c_theta_sin};
             triangle &tri1 = list_of_tri.claim_next_slot(mesh_id);
             triangle &tri2 = list_of_tri.claim_next_slot(mesh_id);
-            tri1 = triangle{top_le, bot_le, bot_ri};
-            tri2 = triangle{top_le, bot_ri, top_ri};
+            tri1 = triangle{top_le, bot_ri, bot_le};
+            tri2 = triangle{top_le, top_ri, bot_ri};
             top_le = top_ri;
             bot_le = bot_ri;
         }
     }
+
     Eigen::Vector3d bot(0.0, -radius, 0.0);
     double l_ring_y = radius * std::cos(delta_phi * (num_samples - 1));
     double l_ring_rad_y = radius * std::sin(delta_phi * (num_samples - 1));
-    Eigen::Vector3d top_prev(l_ring_rad_y * 1.0, l_ring_y, l_ring_rad_y * 0.0);
+    Eigen::Vector3d bot_prev_b(l_ring_rad_y * 1.0, l_ring_y,
+                               l_ring_rad_y * 0.0);
     for (int i = 1; i <= num_samples; ++i) {
         double c_theta = delta_theta * i;
         Eigen::Vector3d bot_curr(l_ring_rad_y * std::cos(c_theta), l_ring_y,
                                  l_ring_rad_y * std::sin(c_theta));
         triangle &tri = list_of_tri.claim_next_slot(mesh_id);
-        tri = triangle{top_prev + center, bot_curr + center, bot + center};
-        bot_prev = bot_curr;
+
+        tri = triangle{bot_prev_b + center, bot_curr + center, bot + center};
+        bot_prev_b = bot_curr;
     }
     const double neg_x = center.x() - radius;
     const double pos_x = center.x() + radius;
@@ -59,8 +64,8 @@ void sphere::build(ds::e_cache_map<triangle> &list_of_tri) {
     const double pos_y = center.y() + radius;
     const double neg_z = center.z() - radius;
     const double pos_z = center.z() + radius;
-    b_cube = {Eigen::Vector3d{pos_x, neg_y, pos_z},
-              Eigen::Vector3d{neg_x, pos_y, neg_z}};
+    b_cube = {Eigen::Vector3d{neg_x, neg_y, neg_z},
+              Eigen::Vector3d{pos_x, pos_y, pos_z}};
 }
 
 Eigen::Vector3d sphere::find_normal(const Eigen::Vector3d &point) const {

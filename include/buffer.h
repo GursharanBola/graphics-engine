@@ -9,21 +9,9 @@ struct triangle {
              const Eigen::Vector3d &p3)
         : point1(p1), point2(p2), point3(p3) {}
 
-    // void cache_p_tri(const Eigen::Vector3d &a_norm1,
-    //                  const Eigen::Vector3d &a_norm2,
-    //                  const Eigen::Vector3d &a_norm3) {
-    //     norm1 = a_norm1;
-    //     norm2 = a_norm2;
-    //     norm3 = a_norm3;
-    // }
-
     Eigen::Vector3d point1;
     Eigen::Vector3d point2;
     Eigen::Vector3d point3;
-
-    //    Eigen::Vector3d norm1;
-    //    Eigen::Vector3d norm2;
-    //    Eigen::Vector3d norm3;
 };
 
 struct tri_ref {
@@ -81,8 +69,10 @@ template <typename T> class buffer {
     int get_width_p() const { return width; }
     int get_sqrt_samples() const { return sqrt_samples; }
     auto get_start() const { return data.begin(); }
-    // assumes custom types have default constructor
-    void clear() { std::fill(data.begin(), data.end(), T{}); }
+    // determine what user wants to clear default value to
+    void clear(T fill_value = T{}) {
+        std::fill(data.begin(), data.end(), fill_value);
+    }
 
   private:
     int length;          // in pixels
@@ -129,14 +119,18 @@ class color_buffer : public buffer<color> {
 };
 
 // simple buffer, has no sub-pixels
-class image_buffer : public buffer<int> {
+class image_buffer : public buffer<uint8_t> {
   public:
     image_buffer(const int length, const int width, const int num_channels)
-        : buffer(length * num_channels, width) {};
+        : buffer(length * num_channels, width), channels(num_channels) {};
+
     bool set_color(const int i, const int j, Eigen::Vector3d color);
-    int draw_png(std::string filename, int width, int height, int channels,
+    int draw_png(std::string filename, int length, int width, int channels,
                  void *data, int stride);
     Eigen::Vector3d get_color(const int i, const int j) const;
+
+  private:
+    int channels;
 };
 
 #endif

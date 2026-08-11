@@ -8,8 +8,8 @@ void quad::build(ds::e_cache_map<triangle> &list_of_tri) {
     const Eigen::Vector3d top_ri = bot_ri + u;
     triangle &tri1 = list_of_tri.claim_next_slot(mesh_id);
     triangle &tri2 = list_of_tri.claim_next_slot(mesh_id);
-    tri1 = triangle{top_le, bot_le, bot_ri};
-    tri2 = triangle{top_le, bot_ri, top_ri};
+    tri1 = triangle{bot_le, top_le, bot_ri};
+    tri2 = triangle{top_le, top_ri, bot_ri};
     Eigen::Vector3d box_min =
         bot_le.cwiseMin(top_le).cwiseMin(bot_ri).cwiseMin(top_ri);
     Eigen::Vector3d box_max =

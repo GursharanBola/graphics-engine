@@ -4,9 +4,14 @@
 #include "buffer.h"
 #include <Eigen/Dense>
 
-// projector acts a utility for lights and cameras
+/**
+ * x is right, y is up, and z is out of the page.
+ * cam_u is associated with x, cam_v is associated with y, cam_ is associated
+ * with z
+ */
 
-// focal_len = 1 / tan (t * (pi/2)) t is a normalized value between 0 and 1.
+/** focal_len = 1 / tan (t * (pi/2)) t is a normalized value between 0 and 1.*/
+
 class projector {
   public:
     virtual ~projector() = default;
@@ -14,7 +19,7 @@ class projector {
               const Eigen::Vector3d &cam_v, const Eigen::Vector3d &cam_w,
               const double focal_len)
         : origin(origin), cam_u(cam_u), cam_v(cam_v), cam_w(cam_w),
-          focal_len(focal_len) {};
+          focal_len(focal_len) {}
 
     // get and set functions
     Eigen::Vector3d get_u() const { return cam_u; }

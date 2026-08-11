@@ -16,10 +16,10 @@ struct material {
 
     double shine;                // power of spectral term
     double metalic;              // bounded between [0,1]
-    Eigen::Vector3d reflectance; // each element bounded between [0,1]
-    color col;                   // the mesh's color
-    bool is_metal;               // metal if material has cube map
-    int metal_data = -1;         // index to its cube mapped reflection buffers
+    Eigen::Vector3d reflectance; // elements bounded between [0,1]
+    color col;                   // mesh's color
+    bool is_metal;               // is metal if material has cube map
+    int metal_data = -1;         // index to the start of it's cube map
 };
 
 #endif
