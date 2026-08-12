@@ -12,45 +12,6 @@
 #include <thread>
 #include <vector>
 
-// TODO: debugging, cube/quad map buffers are of a constant size
-
-// design changes / debugs and checks:
-
-// TODO: ensure valid backface culling also ensure the peter shirely standard
-
-// TODO: note design changes in engine.h and impliment these design changes
-
-// potential optimizations:
-
-// TODO: Use as many Eigen functions to speed up the math using SIMD converting
-// to matrix math will probably yeild benefits
-
-// TODO: struct triangle should cache the normals of each triangle and bounding
-// boxes of each triangle to avoid recalculation
-
-// TODO: A quicker alternative could be in engine::color_buffs() make a simple
-// cache that stores the last triangle's data to avoid looking it back up or
-// recalculating it (this can be done in the mesh's build step)
-
-// TODO: The engine_helper::rast_tri and engine::color_buffs() <-(prob not)
-// may be able to be further optimized by avoiding having to recompute
-// barycentric, as the program goes over the bounding_box
-
-// TODO: If the number of meshes seen are sparse maybe including SIMD opps
-// to quickly check for empty regions is a good way to optimized
-
-// TODO: determine a way to cull which meshes are not going to be visible
-// to avoid looping over meshes not visible in the camera, this can be for
-// any projector in the scene to speed things up
-
-// TODO: I want the program to begin coloring while it is populating the
-// z_buffers to do this the program break up the work.The program will tile
-// the color_buffer, provide each tile with the proper triangles to use,
-// then raster and color that section, each thread does a tile and is fully
-// parallel
-
-// https://www.youtube.com/watch?v=kYVqL_DqBis
-
 void engine::render() {
     const int img_length = scene.get_img_length();
     const int img_height = scene.get_img_height();
@@ -58,7 +19,7 @@ void engine::render() {
     const int samples = sqrt_samples * sqrt_samples;
     color_buffer &color_buff = scene.col_buffer;
     image_buffer &img = scene.img;
-    // TODO: complete this function after dust settles
+    // TODO: complete this function later not a focus right now
 }
 
 void engine::fill_z_s(const projector &projector,
@@ -166,6 +127,8 @@ void engine::color_buff(const camera &cam, const bool is_map,
     const int sqrt_samples = scene.get_sqrt_samples();
     const int length = length_p * sqrt_samples;
     const int width = width_p * sqrt_samples;
+    const double shadow_world_x_to_pix = length / 2.0;
+    const double shadow_world_y_to_pix = width / 2.0;
     const double inv_pi = 1.0 / EIGEN_PI;
     const Eigen::Vector3d ones = Eigen::Vector3d::Ones();
     const Eigen::Vector3d &cam_o = cam.get_o();
@@ -221,18 +184,37 @@ void engine::color_buff(const camera &cam, const bool is_map,
 
             const triangle p_tri = engine_helper::proj_tri(
                 tri, cam_u, cam_v, cam_w, cam_o, cam_focal_len);
+
+            const double inv_area =
+                1.0 / engine_helper::edge_func(p_tri.point1, p_tri.point2,
+                                               p_tri.point3);
+
             const Eigen::Vector3d bary = engine_helper::get_bary(
-                p_tri.point1, p_tri.point2, p_tri.point3, test);
+                p_tri.point1, p_tri.point2, p_tri.point3, test, inv_area);
+
             const double alpha = bary[0];
             const double beta = bary[1];
             const double gamma = bary[2];
-            const Eigen::Vector3d inter_norm =
-                alpha * n1 + beta * n2 + gamma * n3;
+
+            const double z1 = p_tri.point1.z();
+            const double z2 = p_tri.point2.z();
+            const double z3 = p_tri.point3.z();
+
+            const double inv_z_pixel =
+                (alpha / z1) + (beta / z2) + (gamma / z3);
+            const double pixel_z = 1.0 / inv_z_pixel;
+
+            const double pc_alpha = (alpha / z1) * pixel_z;
+            const double pc_beta = (beta / z2) * pixel_z;
+            const double pc_gamma = (gamma / z3) * pixel_z;
+
             const Eigen::Vector3d world_pos =
-                alpha * p1 + beta * p2 + gamma * p3;
+                pc_alpha * p1 + pc_beta * p2 + pc_gamma * p3;
+
+            const Eigen::Vector3d inter_norm =
+                (pc_alpha * n1 + pc_beta * n2 + pc_gamma * n3).normalized();
 
             const Eigen::Vector3d view = (cam_o - world_pos).normalized();
-            const Eigen::Vector3d cam_half = (view + cam_w).normalized();
 
             const Eigen::Vector3d &reflectance = mat.reflectance;
             const Eigen::Vector3d metal_color = (1 - metal) * base_color.val;
@@ -252,6 +234,10 @@ void engine::color_buff(const camera &cam, const bool is_map,
                 const Eigen::Vector3d env_frensel =
                     F0 + (ones - F0) * env_trans;
 
+                const double v_dot_n = view.dot(inter_norm);
+                const Eigen::Vector3d reflect_dir =
+                    ((2.0 * v_dot_n * inter_norm) - view).normalized();
+
                 const Eigen::Vector3d refl_col =
                     ref_col(c_mesh, inter_norm, world_pos);
                 tot_col += env_frensel.cwiseProduct(refl_col);
@@ -269,10 +255,15 @@ void engine::color_buff(const camera &cam, const bool is_map,
 
                 const Eigen::Vector3d proj_point = engine_helper::project_point(
                     world_pos, light_u, light_v, light_w, light_o, light_f_len);
-                const double x = (proj_point[0] + x_max) * world_x_to_s_pix;
-                const double y = (proj_point[1] + y_max) * world_y_to_s_pix;
-                const int s_pixel_x = static_cast<int>(std::floor(x));
-                const int s_pixel_y = static_cast<int>(std::floor(y));
+
+                if (proj_point.z() <= 0.0) {
+                    continue; // cull triangles behind camera
+                }
+
+                const int s_pixel_x = static_cast<int>((proj_point[0] + 1.0) *
+                                                       shadow_world_x_to_pix);
+                const int s_pixel_y = static_cast<int>((proj_point[1] + 1.0) *
+                                                       shadow_world_y_to_pix);
 
                 if (s_pixel_x < 0 || s_pixel_x >= length || s_pixel_y < 0 ||
                     s_pixel_y >= width) {

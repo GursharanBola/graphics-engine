@@ -7,13 +7,6 @@
 #include "scene.h"
 #include <vector>
 
-// TODO: add cube mapped reflections and maybe file parsing
-
-/*
- * Resource for PBR for rasterization
- * http://www.thetenthplanet.de/archives/255
- */
-
 class engine {
   public:
     engine(scene &scene, camera &scene_cam)
