@@ -351,8 +351,10 @@ void engine::color_buff(const camera &cam, const bool is_map,
     const int sqrt_samples = scene.get_sqrt_samples();
     const int length = length_p * sqrt_samples;
     const int width = width_p * sqrt_samples;
-    const double shadow_world_x_to_pix = length / 2.0;
-    const double shadow_world_y_to_pix = width / 2.0;
+    const double light_x_max = static_cast<double>(length_p) / width_p;
+    const double light_y_max = 1.0;
+    const double light_world_x_to_s_pix = length / (2.0 * light_x_max);
+    const double light_world_y_to_s_pix = width / (2.0 * light_y_max);
     const double inv_pi = 1.0 / EIGEN_PI;
     const Eigen::Vector3d ones = Eigen::Vector3d::Ones();
     const Eigen::Vector3d &cam_o = cam.get_o();
@@ -384,7 +386,7 @@ void engine::color_buff(const camera &cam, const bool is_map,
     const ds::e_cache_map<triangle> &list_of_tri = scene.list_of_tri;
 
     for (int j = 0; j < width; ++j) {
-        const double world_y = (j + 0.5) * s_pix_to_world_y - y_max;
+        const double world_y = y_max - (j + 0.5) * s_pix_to_world_y;
         for (int i = 0; i < length; ++i) {
             const double world_x = (i + 0.5) * s_pix_to_world_x - x_max;
             const Eigen::Vector3d test{world_x, world_y, 0};
@@ -449,7 +451,6 @@ void engine::color_buff(const camera &cam, const bool is_map,
                 (1.0 - metal) * reflectance + metal * base_color.val;
             const double scaled_shine = (mat.shine + 2.0) * 0.5 * inv_pi;
             const double n_dot_v = std::max(0.0, inter_norm.dot(view));
-            const double cam_trans = engine_helper::f_pow(1.0 - n_dot_v, 5);
 
             Eigen::Vector3d tot_col = ambient_term;
 
@@ -481,13 +482,13 @@ void engine::color_buff(const camera &cam, const bool is_map,
                     world_pos, light_u, light_v, light_w, light_o, light_f_len);
 
                 if (proj_point.z() <= 0.0) {
-                    continue; // cull triangles behind camera
+                    continue; // cull triangles behind light
                 }
 
-                const int s_pixel_x = static_cast<int>((proj_point[0] + 1.0) *
-                                                       shadow_world_x_to_pix);
-                const int s_pixel_y = static_cast<int>((proj_point[1] + 1.0) *
-                                                       shadow_world_y_to_pix);
+                const int s_pixel_x = static_cast<int>(
+                    (proj_point[0] + light_x_max) * light_world_x_to_s_pix);
+                const int s_pixel_y = static_cast<int>(
+                    (light_y_max - proj_point[1]) * light_world_y_to_s_pix);
 
                 if (s_pixel_x < 0 || s_pixel_x >= length || s_pixel_y < 0 ||
                     s_pixel_y >= width) {
