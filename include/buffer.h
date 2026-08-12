@@ -4,6 +4,8 @@
 #include <Eigen/Dense>
 #include <vector>
 
+class engine;
+
 struct triangle {
     triangle(const Eigen::Vector3d &p1, const Eigen::Vector3d &p2,
              const Eigen::Vector3d &p3)
@@ -50,6 +52,7 @@ class color {
 
 template <typename T> class buffer {
   public:
+    friend engine;
     virtual ~buffer() = default;
     buffer(buffer &&) noexcept = default;
     buffer &operator=(buffer &&) noexcept = default;
@@ -78,7 +81,7 @@ template <typename T> class buffer {
     int length;          // in pixels
     int width;           // in pixels
     int sqrt_samples;    // in sub_pixels
-    std::vector<T> data; // intialize buffers as empty
+    std::vector<T> data; // actual buffer data
 };
 
 class z_buffer : public buffer<double> {

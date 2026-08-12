@@ -35,7 +35,7 @@ class scene {
         : img_length(img_length), img_height(img_height),
           num_channels(num_channels), sqrt_samples(sqrt_samples),
           img(img_length, img_height, num_channels),
-          col_buffer(img_length, img_height, sqrt_samples),
+          col_buffer_cam(img_length, img_height, sqrt_samples),
           z_buffer_cam(img_length, img_height, sqrt_samples),
           s_buffer_cam(img_length, img_height, sqrt_samples),
           ambient_color(ambient_color) {};
@@ -110,7 +110,7 @@ class scene {
     std::vector<light> lights;
 
     image_buffer img;
-    color_buffer col_buffer;
+    color_buffer col_buffer_cam;
     z_buffer z_buffer_cam;
     seen_buffer s_buffer_cam;
     std::vector<z_buffer> z_buffer_lights;
