@@ -426,15 +426,25 @@ Eigen::Vector3d engine::ref_col(const shape &mesh, const Eigen::Vector3d &r_dir,
         const double half_wid_y = std::abs(box_max.y() - box_min.y()) * 0.5;
         const double half_wid_z = std::abs(box_max.z() - box_min.z()) * 0.5;
 
+        const double safe_dir_x = (r_dir.x() >= 0.0)
+                                      ? std::max(1e-8, r_dir.x())
+                                      : std::min(-1e-8, r_dir.x());
+        const double safe_dir_y = (r_dir.y() >= 0.0)
+                                      ? std::max(1e-8, r_dir.y())
+                                      : std::min(-1e-8, r_dir.y());
+        const double safe_dir_z = (r_dir.z() >= 0.0)
+                                      ? std::max(1e-8, r_dir.z())
+                                      : std::min(-1e-8, r_dir.z());
+
         const double t_x_exit = (r_dir.x() >= 0.0)
-                                    ? (box_max.x() - r_origin.x()) / r_dir.x()
-                                    : (box_min.x() - r_origin.x()) / r_dir.x();
+                                    ? (box_max.x() - r_origin.x()) / safe_dir_x
+                                    : (box_min.x() - r_origin.x()) / safe_dir_x;
         const double t_y_exit = (r_dir.y() >= 0.0)
-                                    ? (box_max.y() - r_origin.y()) / r_dir.y()
-                                    : (box_min.y() - r_origin.y()) / r_dir.y();
+                                    ? (box_max.y() - r_origin.y()) / safe_dir_y
+                                    : (box_min.y() - r_origin.y()) / safe_dir_y;
         const double t_z_exit = (r_dir.z() >= 0.0)
-                                    ? (box_max.z() - r_origin.z()) / r_dir.z()
-                                    : (box_min.z() - r_origin.z()) / r_dir.z();
+                                    ? (box_max.z() - r_origin.z()) / safe_dir_z
+                                    : (box_min.z() - r_origin.z()) / safe_dir_z;
 
         const double t_exit = std::min({t_x_exit, t_y_exit, t_z_exit});
 
@@ -463,15 +473,25 @@ Eigen::Vector3d engine::ref_col(const shape &mesh, const Eigen::Vector3d &r_dir,
         const Eigen::Vector3d box_min = s.b_cube[0];
         const Eigen::Vector3d box_max = s.b_cube[1];
 
+        const double safe_dir_x = (r_dir.x() >= 0.0)
+                                      ? std::max(1e-8, r_dir.x())
+                                      : std::min(-1e-8, r_dir.x());
+        const double safe_dir_y = (r_dir.y() >= 0.0)
+                                      ? std::max(1e-8, r_dir.y())
+                                      : std::min(-1e-8, r_dir.y());
+        const double safe_dir_z = (r_dir.z() >= 0.0)
+                                      ? std::max(1e-8, r_dir.z())
+                                      : std::min(-1e-8, r_dir.z());
+
         const double t_x_exit = (r_dir.x() >= 0.0)
-                                    ? (box_max.x() - r_origin.x()) / r_dir.x()
-                                    : (box_min.x() - r_origin.x()) / r_dir.x();
+                                    ? (box_max.x() - r_origin.x()) / safe_dir_x
+                                    : (box_min.x() - r_origin.x()) / safe_dir_x;
         const double t_y_exit = (r_dir.y() >= 0.0)
-                                    ? (box_max.y() - r_origin.y()) / r_dir.y()
-                                    : (box_min.y() - r_origin.y()) / r_dir.y();
+                                    ? (box_max.y() - r_origin.y()) / safe_dir_y
+                                    : (box_min.y() - r_origin.y()) / safe_dir_y;
         const double t_z_exit = (r_dir.z() >= 0.0)
-                                    ? (box_max.z() - r_origin.z()) / r_dir.z()
-                                    : (box_min.z() - r_origin.z()) / r_dir.z();
+                                    ? (box_max.z() - r_origin.z()) / safe_dir_z
+                                    : (box_min.z() - r_origin.z()) / safe_dir_z;
 
         double t_exit = std::min({t_x_exit, t_y_exit, t_z_exit});
 
