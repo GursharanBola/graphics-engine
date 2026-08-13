@@ -150,11 +150,8 @@ Eigen::Vector3d engine::ref_col(const shape &mesh, const Eigen::Vector3d &r_dir,
 
     if (std::holds_alternative<quad>(mesh)) {
         const quad &q = std::get<quad>(mesh);
-        const Eigen::Vector3d &q_origin = q.get_origin();
         const Eigen::Vector3d box_min = q.b_cube[0];
         const Eigen::Vector3d box_max = q.b_cube[1];
-        const double u_norm = q.u_norm;
-        const double v_norm = q.v_norm;
 
         const double half_wid_x = std::abs(box_max.x() - box_min.x()) * 0.5;
         const double half_wid_y = std::abs(box_max.y() - box_min.y()) * 0.5;
