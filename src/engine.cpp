@@ -13,6 +13,39 @@
 #include <thread>
 #include <vector>
 
+/** -- features -- */
+
+// TODO: add .obj file parsing
+
+// TODO: allow users to import their own skybox for reflections
+
+/** -- optimizations -- */
+
+// TODO: add fustrum culling and cache info in fill_v_s for color_buff
+// cache should be "cronological" a.k.a access order
+
+// TODO: Use as many Eigen functions to speed up the math using SIMD.
+// Converting to matrix math will yeild benefits
+
+// TODO: use SIMD operations to scan visibility and depth buffers if
+// scenes don't have many meshes in them
+
+// TODO: in color_buffs() store last triangles bounding box and normals
+// locally to avoid having to look up at all
+
+// TODO: The engine_helper::rast_tri and engine::color_buffs() <-(prob not)
+// may be able to be further optimized by avoiding having to recompute
+// barycentric, as the program goes over the bounding_box
+
+// TODO: Chunk buffers into tiles and determine which triangle is in which tile
+// then make a thread job that performs fill_v_s and color_buff on said tile
+
+// TODO: Change buffer format such that large buffers are broken into tiles.
+// each tile is then stored in row major order. Then each tile itself is stored
+// in row major order
+
+// https://www.youtube.com/watch?v=kYVqL_DqBis
+
 void engine::render() {
     const int img_length = scene.get_img_length();
     const int img_height = scene.get_img_height();
