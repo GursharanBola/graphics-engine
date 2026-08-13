@@ -197,7 +197,7 @@ Eigen::Vector3d engine::ref_col(const shape &mesh, const Eigen::Vector3d &r_dir,
         const int s_pix_x = std::clamp(
             static_cast<int>(std::floor(per_x * side_len)), 0, max_val);
         const int s_pix_y = std::clamp(
-            static_cast<int>(std::floor(per_y * side_len)), 0, max_val);
+            static_cast<int>(std::floor((1.0 - per_y) * side_len)), 0, max_val);
 
         return col_buff.get(s_pix_x, s_pix_y).val;
     } else if (std::holds_alternative<sphere>(mesh)) {
@@ -239,7 +239,7 @@ Eigen::Vector3d engine::ref_col(const shape &mesh, const Eigen::Vector3d &r_dir,
         const int s_pix_x = std::clamp(
             static_cast<int>(std::floor(per_x * side_len)), 0, max_val);
         const int s_pix_y = std::clamp(
-            static_cast<int>(std::floor(per_y * side_len)), 0, max_val);
+            static_cast<int>(std::floor((1 - per_y) * side_len)), 0, max_val);
 
         return col_buff.get(s_pix_x, s_pix_y).val;
     }
@@ -346,15 +346,24 @@ void engine::fill_z_s(const projector &projector,
 
 void engine::color_buff(const camera &cam, const bool is_map,
                         const seen_buffer &cam_s_buff, color_buffer &col_buff) {
-    const int length_p = scene.get_img_length();
-    const int width_p = scene.get_img_height();
-    const int sqrt_samples = scene.get_sqrt_samples();
+    // pull this col_buff's info
+    const int length_p = col_buff.get_length_p();
+    const int width_p = col_buff.get_width_p();
+    const int sqrt_samples = col_buff.get_sqrt_samples();
     const int length = length_p * sqrt_samples;
     const int width = width_p * sqrt_samples;
-    const double light_x_max = static_cast<double>(length_p) / width_p;
+
+    // pull the light buffer info
+    const int light_length_p = scene.get_img_length();
+    const int light_width_p = scene.get_img_height();
+    const int light_length = light_length_p * scene.get_sqrt_samples();
+    const int light_width = light_width_p * scene.get_sqrt_samples();
+    const double light_x_max =
+        static_cast<double>(light_length_p) / light_width_p;
     const double light_y_max = 1.0;
-    const double light_world_x_to_s_pix = length / (2.0 * light_x_max);
-    const double light_world_y_to_s_pix = width / (2.0 * light_y_max);
+    const double light_world_x_to_s_pix = light_length / (2.0 * light_x_max);
+    const double light_world_y_to_s_pix = light_width / (2.0 * light_y_max);
+
     const double inv_pi = 1.0 / EIGEN_PI;
     const Eigen::Vector3d ones = Eigen::Vector3d::Ones();
     const Eigen::Vector3d &cam_o = cam.get_o();
@@ -365,6 +374,8 @@ void engine::color_buff(const camera &cam, const bool is_map,
     const color &ambient = scene.ambient_color;
     const int num_meshes = scene.meshes.size();
     const int num_lights = scene.lights.size();
+
+    // determine the dimensions of img plane
     double x_max = static_cast<double>(length_p) / width_p;
     double y_max = 1.0;
     double s_pix_to_world_x = 2.0 * x_max / length;
@@ -379,6 +390,7 @@ void engine::color_buff(const camera &cam, const bool is_map,
         world_y_to_s_pix = width / (2.0 * y_max);
         world_x_to_s_pix = length / (2.0 * x_max);
     }
+
     const std::vector<shape> &meshes = scene.meshes;
     const std::vector<light> &lights = scene.lights;
     const std::vector<material> &mats = scene.mats;
@@ -490,8 +502,8 @@ void engine::color_buff(const camera &cam, const bool is_map,
                 const int s_pixel_y = static_cast<int>(
                     (light_y_max - proj_point[1]) * light_world_y_to_s_pix);
 
-                if (s_pixel_x < 0 || s_pixel_x >= length || s_pixel_y < 0 ||
-                    s_pixel_y >= width) {
+                if (s_pixel_x < 0 || s_pixel_x >= light_length ||
+                    s_pixel_y < 0 || s_pixel_y >= light_width) {
                     continue;
                 }
 
