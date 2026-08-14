@@ -136,15 +136,18 @@ class image_buffer : public buffer<uint8_t> {
     int channels;
 };
 
-// NOTE: users should not use tile_buffer's get and set methods
-template <typename T> class tile_buffer : public buffer<T> {
+template <typename T> class tiled_buffer {
   public:
-    tile_buffer(const int length, const int width, const int sqrt_tile_size_p,
-                const int sqrt_samples)
-        : buffer<T>(length, width, sqrt_samples),
+    ~tiled_buffer() = default;
+    tiled_buffer(tiled_buffer &&) noexcept = default;
+    tiled_buffer &operator=(tiled_buffer &&) noexcept = default;
+
+    tiled_buffer(const int length, const int width, const int sqrt_tile_size_p,
+                 const int sqrt_samples)
+        : length(length), width(width), sqrt_samples(sqrt_samples),
           sqrt_tile_size_p(sqrt_tile_size_p) {
 
-        sqrt_tile_size_s = sqrt_tile_size_p * this->get_sqrt_samples();
+        sqrt_tile_size_s = sqrt_tile_size_p * sqrt_samples;
         tile_size_p = sqrt_tile_size_p * sqrt_tile_size_p;
         tile_size_s = sqrt_tile_size_s * sqrt_tile_size_s;
 
@@ -164,7 +167,7 @@ template <typename T> class tile_buffer : public buffer<T> {
         const int tile_start = tile_index * tile_size_s;
         const int index = tile_start + (s_pix_y * sqrt_tile_size_s) + s_pix_x;
 
-        return this->data[index];
+        return data[index];
     }
 
     void set_elem(const int i, const int j, const T &val) {
@@ -176,7 +179,18 @@ template <typename T> class tile_buffer : public buffer<T> {
         const int tile_index = num_tiles_x * tile_y + tile_x;
         const int tile_start = tile_index * tile_size_s;
         const int index = tile_start + (s_pix_y * sqrt_tile_size_s) + s_pix_x;
-        this->data[index] = val;
+        data[index] = val;
+    }
+
+    int get_length() const { return length * sqrt_samples; }
+    int get_width() const { return width * sqrt_samples; }
+    int get_length_p() const { return length; }
+    int get_width_p() const { return width; }
+    int get_sqrt_samples() const { return sqrt_samples; }
+    auto get_start() const { return data.begin(); }
+    // determine what user wants to clear default value to
+    void clear(T fill_value = T{}) {
+        std::fill(data.begin(), data.end(), fill_value);
     }
 
   private:
@@ -186,6 +200,11 @@ template <typename T> class tile_buffer : public buffer<T> {
     int tile_size_s;      // in sub pixels (area)
     int num_tiles_x;      // how long in tiles
     int num_tiles_y;      // how tall in tiles
+
+    int length;          // in pixels
+    int width;           // in pixels
+    int sqrt_samples;    // in sub_pixels
+    std::vector<T> data; // actual buffer data
 };
 
 #endif
