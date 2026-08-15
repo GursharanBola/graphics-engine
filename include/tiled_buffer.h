@@ -4,6 +4,8 @@
 #include <Eigen/Dense>
 #include <vector>
 
+class engine;
+
 struct triangle {
     triangle(const Eigen::Vector3d &p1, const Eigen::Vector3d &p2,
              const Eigen::Vector3d &p3)
@@ -39,6 +41,7 @@ struct cached_tri {
 // colors hold values [0, 1]
 class color {
   public:
+    friend engine;
     Eigen::Vector3d val;
     color() : val(0.0, 0.0, 0.0) {}
     color(double r, double g, double b) : val(r, g, b) {}
