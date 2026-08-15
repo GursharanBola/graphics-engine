@@ -2,6 +2,8 @@
 #define TILED_BUFFER_H
 
 #include <Eigen/Dense>
+#include <algorithm>
+#include <execution>
 #include <vector>
 
 class engine;
@@ -94,6 +96,19 @@ template <typename T> class tiled_buffer {
         const int tile_start = tile_index * tile_size_s;
         const int index = tile_start + (s_pix_y * sqrt_tile_size_s) + s_pix_x;
         data[index] = val;
+    }
+
+    std::vector<T> make_row_major_order() {
+        std::vector<T> res(length * width * sqrt_samples);
+        for (int offset = 0; offset < tile_size_s; offset += sqrt_tile_size_s) {
+            for (int row_start = offset; row_start < length;
+                 row_start += tile_size_s) {
+                const int end = std::min(length, row_start + sqrt_tile_size_s);
+                std::copy(std::execution::par, data.begin() + row_start,
+                          data.begin() + end, res.end());
+            }
+        }
+        return res;
     }
 
     int get_length() const { return length * sqrt_samples; }
