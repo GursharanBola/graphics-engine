@@ -144,21 +144,28 @@ class tiled_depth_buffer : public tiled_buffer<double> {
 };
 
 class tiled_visibility_buffer : public tiled_buffer<tri_ref> {
+  public:
     tiled_visibility_buffer(const int length, const int width,
                             const int sqrt_tile_size_p, const int sqrt_samples)
         : tiled_buffer(length, width, sqrt_tile_size_p, sqrt_samples) {}
 };
 
 class tiled_color_buffer : public tiled_buffer<color> {
+  public:
     tiled_color_buffer(const int length, const int width,
                        const int sqrt_tile_size_p, const int sqrt_samples)
         : tiled_buffer(length, width, sqrt_tile_size_p, sqrt_samples) {}
 };
 
 class tiled_render_buffer : public tiled_buffer<uint8_t> {
-    tiled_render_buffer(const int length, const int width,
-                        const int sqrt_tile_size_p, const int sqrt_samples)
-        : tiled_buffer(length, width, sqrt_tile_size_p, sqrt_samples) {}
+  public:
+    tiled_render_buffer(const int length, const int width, const int channels,
+                        const int sqrt_tile_size_p)
+        : tiled_buffer(length * channels, width, sqrt_tile_size_p, 1),
+          channels(channels) {}
+
+  private:
+    int channels;
 };
 
 #endif
