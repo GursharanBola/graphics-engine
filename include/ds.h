@@ -87,7 +87,7 @@ template <typename T> struct e_cache_map {
 // this is a thread pool implimentation without work stealing
 
 // load imbalances will kill this optimization but works well
-// on dense scenes, in this case switch to column major order
+// on dense scenes, user should consider writing a load balancer
 template <typename T> struct thread_pool {
   public:
     std::optional<e_cache_map<job<T>>> jobs;

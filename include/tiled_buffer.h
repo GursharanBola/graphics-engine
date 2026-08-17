@@ -7,6 +7,9 @@
 
 class engine;
 
+// TODO: handle there being a row major order tiling and column major order
+// tiling
+
 struct triangle {
     triangle(const Eigen::Vector3d &p1, const Eigen::Vector3d &p2,
              const Eigen::Vector3d &p3)
@@ -137,7 +140,7 @@ template <typename T> class tiled_buffer {
 
     std::vector<T> return_avg() {
         const int samples_per_pixel = sqrt_samples * sqrt_samples;
-        std::vector<T> res;
+        std::vector<T> res(length * width);
         std::array<T, tile_size_p> pix_sums;
         for (int y = 0; y < width; ++y) {
             for (int x = 0; x < length; ++x) {
