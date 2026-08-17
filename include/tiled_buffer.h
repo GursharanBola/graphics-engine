@@ -3,7 +3,6 @@
 
 #include <Eigen/Dense>
 #include <algorithm>
-#include <execution>
 #include <vector>
 
 class engine;
@@ -51,6 +50,17 @@ class color {
     double g() const { return val[1]; }
     double b() const { return val[2]; }
     void clamp() { val = val.cwiseMin(1.0).cwiseMax(0.0); }
+
+    color &operator+=(const color &other) {
+        val += other.val;
+        return *this;
+    }
+
+    color operator/(double scalar) const {
+        color res;
+        res.val = this->val / scalar;
+        return res;
+    }
 };
 
 template <typename T> class tiled_buffer {
@@ -99,13 +109,48 @@ template <typename T> class tiled_buffer {
     }
 
     std::vector<T> make_row_major_order() {
-        std::vector<T> res(length * width * sqrt_samples);
-        for (int offset = 0; offset < tile_size_s; offset += sqrt_tile_size_s) {
-            for (int row_start = offset; row_start < length;
-                 row_start += tile_size_s) {
-                const int end = std::min(length, row_start + sqrt_tile_size_s);
-                std::copy(std::execution::par, data.begin() + row_start,
-                          data.begin() + end, res.end());
+        const int width_s = get_length();
+        const int height_s = get_width();
+        std::vector<T> res(width_s * height_s);
+
+        int src_index = 0;
+        for (int tile_y = 0; tile_y < num_tiles_y; ++tile_y) {
+            for (int tile_x = 0; tile_x < num_tiles_x; ++tile_x) {
+                for (int s_pix_y = 0; s_pix_y < sqrt_tile_size_s; ++s_pix_y) {
+                    const int dest_y = tile_y * sqrt_tile_size_s + s_pix_y;
+                    for (int s_pix_x = 0; s_pix_x < sqrt_tile_size_s;
+                         ++s_pix_x) {
+                        const int dest_x = tile_x * sqrt_tile_size_s + s_pix_x;
+
+                        if (dest_x < width_s && dest_y < height_s) {
+                            const size_t dest_index =
+                                static_cast<size_t>(dest_y) * width_s + dest_x;
+                            res[dest_index] = data[src_index];
+                        }
+                        src_index++;
+                    }
+                }
+            }
+        }
+        return res;
+    }
+
+    std::vector<T> return_avg() {
+        const int samples_per_pixel = sqrt_samples * sqrt_samples;
+        std::vector<T> res;
+        std::array<T, tile_size_p> pix_sums;
+        for (int y = 0; y < width; ++y) {
+            for (int x = 0; x < length; ++x) {
+                T sum = T{};
+                for (int sy = 0; sy < sqrt_samples; ++sy) {
+                    for (int sx = 0; sx < sqrt_samples; ++sx) {
+                        const int sub_x = x * sqrt_samples + sx;
+                        const int sub_y = y * sqrt_samples + sy;
+                        sum += get_elem(sub_x, sub_y);
+                    }
+                }
+                const int res_index = y * length + x;
+                res[res_index] = sum / static_cast<double>(samples_per_pixel);
             }
         }
         return res;
@@ -116,6 +161,12 @@ template <typename T> class tiled_buffer {
     int get_length_p() const { return length; }
     int get_width_p() const { return width; }
     int get_sqrt_samples() const { return sqrt_samples; }
+    int get_sqrt_tile_size_p() { return sqrt_tile_size_p; }
+    int get_sqrt_tile_size_s() { return sqrt_tile_size_s; }
+    int get_tile_size_p() { return tile_size_p; }
+    int get_tile_size_s() { return tile_size_s; }
+    int get_num_tiles_x() { return num_tiles_x; }
+    int get_num_tiles_y() { return num_tiles_y; }
     auto get_start() const { return data.begin(); }
     // determine what user wants to clear default value to
     void clear(T fill_value = T{}) {
