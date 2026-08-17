@@ -8,10 +8,8 @@
 
 namespace ds {
 template <typename T> struct job {
-    job(const T job_data) : job_data(job_data), completed(false) {}
-    void mark_completed() { completed = true; }
+    job(const T job_data) : job_data(job_data) {}
     T job_data;
-    bool completed;
 };
 
 // efficient cache map, stores data densely to avoid cache misses
