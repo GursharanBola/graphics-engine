@@ -3,6 +3,7 @@
 
 #include <Eigen/Dense>
 #include <algorithm>
+#include <tuple>
 #include <vector>
 
 class engine;
@@ -86,6 +87,10 @@ template <typename T> class tiled_buffer {
 
         this->data.resize(num_tiles_x * num_tiles_y * tile_size_s);
     };
+
+    // if user is interested they can parse row major order buffers and use flip
+    // to make buffer column major order considering they size buffer correctly
+    std::tuple<int, int> flip(const int i, const int j) { return {j, i}; }
 
     const T get_elem(const int i, const int j) const {
         const int tile_x = i / sqrt_tile_size_s;
