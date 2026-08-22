@@ -8,9 +8,6 @@
 
 class engine;
 
-// TODO: handle there being a row major order tiling and column major order
-// tiling
-
 struct triangle {
     triangle(const Eigen::Vector3d &p1, const Eigen::Vector3d &p2,
              const Eigen::Vector3d &p3)
@@ -162,6 +159,10 @@ template <typename T> class tiled_buffer {
             }
         }
         return res;
+    }
+
+    int get_tile_start(const int x, const int y) {
+        return (x + num_tiles_x * y) * sqrt_tile_size_s;
     }
 
     int get_length() const { return length * sqrt_samples; }
